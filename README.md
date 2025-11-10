@@ -30,17 +30,17 @@ res = SchedNEM.run_operation_model(m, sys)
 # Compare with expecation dispatch
 # => This means storage/genstorage operation is directly added/subtracted from the load, and the units disabled in PRAS
 sys_stor_fixed = deepcopy(sys)
-sys_stor_fixed = updateMarketExpectationDispatch(sys_stor_fixed, res)
+sys_stor_fixed = SchedNEM.updateMarketExpectationDispatch(sys_stor_fixed, res)
 
 # Compare with real-time redispatch
 # => This only updates the energy-capacity to the expected state of charge of the storage/genstorage units. Therefore, storage energy levels will be lower, however it can still react to system conditions such as outages.
 sys_stor_updated = deepcopy(sys)
-sys_stor_updated = updateMarketRealTimeDispatch(sys_stor_updated, res)
+sys_stor_updated = SchedNEM.updateMarketRealTimeDispatch(sys_stor_updated, res)
 
 # Compare with StorageMarket Decision Dispatch
 # => This only allows storage/genstorage units to charge in the timeintervals that were determined in the optimisation. The energy and discharging capacity remains unchanged.
 sys_stor_decision = deepcopy(sys)
-sys_stor_decision = updateStorageMarketDecisionDispatch(sys_stor_decision, res)
+sys_stor_decision = SchedNEM.updateStorageMarketDecisionDispatch(sys_stor_decision, res)
 
 
 #%%
