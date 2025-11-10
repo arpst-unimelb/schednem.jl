@@ -9,5 +9,6 @@ module SchedNEM
 
     include("parser/addCostData.jl")
     include("model/core.jl")
+    include("update/core.jl")
 
 end

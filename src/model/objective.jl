@@ -19,9 +19,12 @@ function add_objective(m, sys)
     end
 
     @expression(m, operating_cost, sum(m[:p_gen][g,t] * gens_cost[g] for g=1:Ngens, t=1:N))
+    @expression(m, load_shedding_cost, sum(m[:load_shedding][r,t] * parse(Float64, sys.attrs["VoLL"]) for r=1:Nregions, t=1:N))
+    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * 2 for s=1:length(sys.storages.names), t=1:N))
+    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * 1 for gs=1:length(sys.generatorstorages.names), t=1:N))
 
     # Objective: Minimize operating cost
-    @objective(m, Min, operating_cost + sum(m[:load_shedding][r,t] * parse(Float64, sys.attrs["VoLL"]) for r=1:Nregions, t=1:N))
+    @objective(m, Min, operating_cost + load_shedding_cost + storage_discharging_cost + genstorage_discharging_cost)
 
     return m
 end

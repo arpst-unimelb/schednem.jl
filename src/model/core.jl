@@ -6,7 +6,7 @@ include("model_update.jl")
 include("model_readout.jl")
 
 #%% =======================================================================================================================
-function build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, generator_input_file::String="")
+function build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, generator_input_file::String="", optimiser::String="HiGHS")
 
     # First check that the optimisation window is larger than the step size
     if optimisation_window < move_forward
@@ -27,7 +27,13 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     end    
 
     # Set up the optimization model
-    m = Model(() -> POI.Optimizer(HiGHS.Optimizer()));
+    if optimiser == "HiGHS"
+        m = Model(() -> POI.Optimizer(HiGHS.Optimizer()));
+    elseif optimiser == "Gurobi"
+            m = Model(() -> POI.Optimizer(Gurobi.Optimizer()));
+    else
+        error("Unsupported optimiser: $optimiser. Supported options are 'HiGHS' and 'Gurobi'.")
+    end
     set_silent(m);
 
     # Store model parameters as JuMP parameters
