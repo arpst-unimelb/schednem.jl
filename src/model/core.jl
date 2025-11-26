@@ -6,14 +6,14 @@ include("model_update.jl")
 include("model_readout.jl")
 
 #%% =======================================================================================================================
-function build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, generator_input_file::String="", optimiser::String="HiGHS")
+function build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, input_folder::String="", optimiser::String="HiGHS")
 
     # First check that the optimisation window is larger than the step size
     if optimisation_window < move_forward
         error("The optimisation window must be larger than or equal to the move forward step size.")
     end
 
-    sys = addGenCostData(sys, generator_input_file)
+    sys = addGenCostData(sys, input_folder)
     sys = addVollData(sys)
 
     # Get the parameters of the system model

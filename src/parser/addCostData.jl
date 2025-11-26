@@ -1,13 +1,16 @@
 
-function addGenCostData(sys::PRAS.SystemModel, generator_input_file::String)
+function addGenCostData(sys::PRAS.SystemModel, input_folder::String)
 
     # First, check if cost data already exists
     if "cvar_1" in keys(sys.attrs)
         return sys  # Cost data already exists
     end
 
+    generator_input_file = joinpath(input_folder, "Generator.csv")
+    der_input_file = joinpath(input_folder, "DER.csv")
+
     # Load generator cost data
-    if generator_input_file == ""
+    if !isfile(generator_input_file)
         println("WARNING: No generator cost data file provided. All operating cost set to zero.")
         Ngens = length(sys.generators.names);
         for i in 1:Ngens

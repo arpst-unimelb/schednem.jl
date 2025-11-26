@@ -8,7 +8,7 @@ Scheduling module for reliability studies of the NEM. Complementary to PRASNEM.j
 
 The implementation for the rolling horizon optimisation is based on the JuMP tutorial by Diego Tejada, see [here](https://jump.dev/JuMP.jl/stable/tutorials/algorithms/rolling_horizon/).
 
-Note that the default solver is HiGHS, however, we recommend using Gurobi to increase solving time. The optimiser can be specified as optional parameter in `build_operation_model()`.
+Note that the default solver is HiGHS, however, we recommend using Gurobi to reduce solving time. The optimiser can be specified as optional parameter in `build_operation_model()`.
 
 ---
 ## Examples
@@ -21,7 +21,7 @@ using PRAS
 sys = SystemModel("src/sample_data/pras_files/2025-01-07_to_2025-01-13_s2_123456789101112_regions.pras")
 sys.regions.load .+= 1000 # Increase the load to see unserved energy events
 # Build the economic dispatch model (add Generator.csv file to obtain the generator running costs)
-m = SchedNEM.build_operation_model(sys; optimisation_window=48, move_forward=24, generator_input_file="./src/sample_data/nem12/Generator.csv")
+m = SchedNEM.build_operation_model(sys; optimisation_window=48, move_forward=24, input_folder="./src/sample_data/nem12/")
 # Run the model
 res = SchedNEM.run_operation_model(m, sys)
 

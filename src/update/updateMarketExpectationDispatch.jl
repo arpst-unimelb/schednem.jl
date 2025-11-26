@@ -1,7 +1,7 @@
 
 function updateMarketExpectationDispatch(sys, res)
     """
-    Dispatch: Adjust load with expected storage / genstorage dispatch. Then set the storage/genstor to fixed mode (no discharge).
+    Dispatch: Adjust load with expected storage / genstorage dispatch. Then set the storage/genstor to fixed mode by adjusting the demand.
     """
     
     for r in 1:length(sys.regions.names)
@@ -20,8 +20,4 @@ function updateMarketExpectationDispatch(sys, res)
     sys.generatorstorages.discharge_capacity .= 0
     
     return sys
-
 end
-
-
-
