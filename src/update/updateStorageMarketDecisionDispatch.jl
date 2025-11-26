@@ -1,10 +1,12 @@
-function updateStorageMarketDecisionDispatch(sys, res)
+function updateStorageMarketDecisionDispatch(sys, res; include_genstorage=true)
     """
     Dispatch: Charging is only limited to the times when storage is expected to charge.
     """
 
     sys.storages.charge_capacity[findall(x -> x == 0, res.stor_charging)] .= 0
-    sys.generatorstorages.gridwithdrawal_capacity[findall(x -> x == 0, res.genstor_charging)] .= 0
+    if include_genstorage
+        sys.generatorstorages.gridwithdrawal_capacity[findall(x -> x == 0, res.genstor_charging)] .= 0
+    end
     
     #sys.storages.charge_capacity[findall(x -> x > 0, res.stor_discharging)] .= 0
     #sys.generatorstorages.gridwithdrawal_capacity[findall(x -> x > 0, res.genstor_discharging)] .= 0
