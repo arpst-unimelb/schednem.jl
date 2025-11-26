@@ -1,4 +1,4 @@
-function updateEnergyderating(sys; derating_mapping = Dict(1.5 => 0.5, 3.5 => 0.75, 7.5 => 0.9))
+function updateEnergyDerating(sys; derating_mapping = Dict(1.5 => 0.5, 3.5 => 0.75, 7.5 => 0.9))
     """
     This function is derating short-term energy storage capacities based on a provided mapping (or AEMO mapping by default).
     The derating_mapping is a Dict where keys are energy storage duration thresholds (in hours) and values are the derating factors (between 0 and 1).
@@ -13,7 +13,7 @@ function updateEnergyderating(sys; derating_mapping = Dict(1.5 => 0.5, 3.5 => 0.
             pcap = maximum(sys.storages.discharge_capacity[s, :])  # Assuming capacity is constant over time
             energy_hours = ecap / pcap
             if energy_hours > lower_bound_hours && energy_hours <= derating_hours
-                sys.storages.energy_capacity[s, :] .= ecap * derating_factor
+                sys.storages.energy_capacity[s, :] .= round.(Int, ecap * derating_factor)
             end
         end
         lower_bound_hours = derating_hours

@@ -19,7 +19,7 @@ function addGenCostData(sys::PRAS.SystemModel, input_folder::String)
         return sys
     else
         # Load generator cost data from CSV
-        gen_info = CSV.read(generator_input_file, DataFrame)
+        gen_info = CSV.read(generator_input_file, DataFrames.DataFrame)
         for row in eachrow(gen_info)
             sys.attrs["cvar_" * string(row[:id_gen])] = string(round(Int,row[:cvar]))
         end

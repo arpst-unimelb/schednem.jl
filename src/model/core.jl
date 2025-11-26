@@ -6,7 +6,7 @@ include("model_update.jl")
 include("model_readout.jl")
 
 #%% =======================================================================================================================
-function build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, input_folder::String="", optimiser::String="HiGHS")
+function build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, input_folder::String="", optimiser=HiGHS.Optimizer())
 
     # First check that the optimisation window is larger than the step size
     if optimisation_window < move_forward
@@ -27,13 +27,7 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     end    
 
     # Set up the optimization model
-    if optimiser == "HiGHS"
-        m = Model(() -> POI.Optimizer(HiGHS.Optimizer()));
-    elseif optimiser == "Gurobi"
-            m = Model(() -> POI.Optimizer(Gurobi.Optimizer()));
-    else
-        error("Unsupported optimiser: $optimiser. Supported options are 'HiGHS' and 'Gurobi'.")
-    end
+    m = Model(() -> POI.Optimizer(optimiser));
     set_silent(m);
 
     # Store model parameters as JuMP parameters
@@ -56,7 +50,28 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     return m
 end
 
-function run_operation_model(m, sys)
+function run_operation_model(m, sys; output_folder_schedule::String="")
+
+    if "case" in keys(sys.attrs) && output_folder_schedule != ""
+        case_name = sys.attrs["case"]
+        output_filepath_test = joinpath(output_folder_schedule, case_name * "_stor_charging.csv")
+        if ispath(output_filepath_test)
+            println("Loading schedule from existing file: ", output_folder_schedule)
+            stor_charging = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_charging.csv"), DataFrames.DataFrame; header=false)
+            stor_discharging = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_discharging.csv"), DataFrames.DataFrame; header=false)
+            stor_energy = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_energy.csv"), DataFrames.DataFrame; header=false)
+            genstor_charging = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_charging.csv"), DataFrames.DataFrame; header=false)
+            genstor_discharging = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_discharging.csv"), DataFrames.DataFrame; header=false)
+            genstor_energy = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_energy.csv"), DataFrames.DataFrame; header=false)
+            return (stor_charging=Matrix(stor_charging),
+                stor_discharging=Matrix(stor_discharging),
+                stor_energy=Matrix(stor_energy),
+                genstor_charging=Matrix(genstor_charging),
+                genstor_discharging=Matrix(genstor_discharging),
+                genstor_energy=Matrix(genstor_energy)
+            )
+        end
+    end
 
     # Initialise result parameters
     full_horizon, _ = get_params(sys)
@@ -69,8 +84,12 @@ function run_operation_model(m, sys)
 
     # Run the rolling horizon optimisation
     move_forward_step = m[:move_forward]
-    for start_idx in 1:move_forward_step:full_horizon
-        println("Optimising from time step $start_idx to $(min(start_idx + m[:N] - 1, full_horizon))")
+    start_idxs = 1:move_forward_step:full_horizon
+    for start_idx in start_idxs
+        if start_idx % (round(Int,full_horizon / 10)) == 0
+            println("Optimisation progress: Time step $start_idx of $full_horizon")
+        end
+        #println("Optimising from time step $start_idx to $(min(start_idx + m[:N] - 1, full_horizon))")
 
         # Determine initial state of charge for storages and generator-storages
         if start_idx == 1
@@ -112,12 +131,27 @@ function run_operation_model(m, sys)
 
     end
 
-
-    return (stor_charging=stor_charging,
+    res_schedule = (stor_charging=stor_charging,
         stor_discharging=stor_discharging,
         stor_energy=stor_energy,
         genstor_charging=genstor_charging,
         genstor_discharging=genstor_discharging,
         genstor_energy=genstor_energy
     )
+
+    if (output_folder_schedule != "") && isdir(output_folder_schedule)
+        if !("case" in keys(sys.attrs))
+            println("WARNING: 'case' attribute not found in system. Cannot save schedule.")
+        else
+            case_name = sys.attrs["case"]
+            CSV.write(joinpath(output_folder_schedule, case_name * "_stor_charging.csv"), Tables.table(res_schedule.stor_charging); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_stor_discharging.csv"), Tables.table(res_schedule.stor_discharging); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_stor_energy.csv"), Tables.table(res_schedule.stor_energy); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_charging.csv"), Tables.table(res_schedule.genstor_charging); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_discharging.csv"), Tables.table(res_schedule.genstor_discharging); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_energy.csv"), Tables.table(res_schedule.genstor_energy); writeheader=false)
+        end
+    end    
+
+    return res_schedule
 end
