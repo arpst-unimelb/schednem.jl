@@ -56,7 +56,7 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
         case_name = sys.attrs["case"]
         output_filepath_test = joinpath(output_folder_schedule, case_name * "_stor_charging.csv")
         if ispath(output_filepath_test)
-            println("Loading schedule from existing file: ", output_folder_schedule)
+            println("Loading schedule from existing files in: ", output_folder_schedule)
             stor_charging = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_charging.csv"), DataFrames.DataFrame; header=false)
             stor_discharging = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_discharging.csv"), DataFrames.DataFrame; header=false)
             stor_energy = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_energy.csv"), DataFrames.DataFrame; header=false)
@@ -89,7 +89,7 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
         if start_idx % (round(Int,full_horizon / 10)) == 0
             println("Optimisation progress: Time step $start_idx of $full_horizon")
         end
-        #println("Optimising from time step $start_idx to $(min(start_idx + m[:N] - 1, full_horizon))")
+        println("Optimising from time step $start_idx to $(min(start_idx + m[:N] - 1, full_horizon))")
 
         # Determine initial state of charge for storages and generator-storages
         if start_idx == 1

@@ -19,7 +19,6 @@ function add_constraint_powerBalance(m, sys)
             sum(m[:p_stor_charge][s,t] for s in sys.region_stor_idxs[r]) +
             sum(m[:p_genstor_charge][gs,t] for gs in sys.region_genstor_idxs[r])
     )
-
     return m
 end
 
@@ -69,17 +68,17 @@ function add_constraints_storageConservation(m, sys)
     genstor_charge_eff = round.(sum(sys.generatorstorages.charge_efficiency, dims=2) ./ size(sys.generatorstorages.charge_efficiency, 2); digits=4)
     genstor_discharge_eff = round.(sum(sys.generatorstorages.discharge_efficiency, dims=2) ./ size(sys.generatorstorages.discharge_efficiency, 2); digits=4)
 
-    if sum(stor_charge_eff .< maximum(sys.storages.charge_efficiency, dims=2)) > 0
+    if sum(stor_charge_eff .< maximum(sys.storages.charge_efficiency, dims=2)) > 0.001
         println("WARNING: Storage charge efficiencies seem to vary over time. Using average efficiencies in conservation constraints.")
     end
-    if sum(stor_discharge_eff .< maximum(sys.storages.discharge_efficiency, dims=2)) > 0
+    if sum(stor_discharge_eff .< maximum(sys.storages.discharge_efficiency, dims=2)) > 0.001
         println("WARNING: Storage discharge efficiencies seem to vary over time. Using average efficiencies in conservation constraints.")
     end
 
-    if sum(genstor_charge_eff .< maximum(sys.generatorstorages.charge_efficiency, dims=2)) > 0
+    if sum(genstor_charge_eff .< maximum(sys.generatorstorages.charge_efficiency, dims=2)) > 0.001
         println("WARNING: Generator-Storage charge efficiencies seem to vary over time. Using average efficiencies in conservation constraints.")
     end
-    if sum(genstor_discharge_eff .< maximum(sys.generatorstorages.discharge_efficiency, dims=2)) > 0
+    if sum(genstor_discharge_eff .< maximum(sys.generatorstorages.discharge_efficiency, dims=2)) > 0.001
         println("WARNING: Generator-Storage discharge efficiencies seem to vary over time. Using average efficiencies in conservation constraints.")
     end
 

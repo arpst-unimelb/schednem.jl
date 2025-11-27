@@ -20,9 +20,11 @@ function updateMarketExpectationDispatch(sys, res; include_genstorage=true)
     # Disable storage / genstorage 
     sys.storages.discharge_capacity .= 0
     sys.storages.charge_capacity .= 0
+    sys.storages.energy_capacity .= 0
     if include_genstorage
         sys.generatorstorages.gridinjection_capacity .= 0
         sys.generatorstorages.discharge_capacity .= 0
+        sys.generatorstorages.energy_capacity .= 0
     end
     
     return sys
