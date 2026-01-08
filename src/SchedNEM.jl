@@ -6,8 +6,10 @@ module SchedNEM
     import HiGHS
     import ParametricOptInterface as POI
     using PRAS
+    import Tables
 
     include("parser/addCostData.jl")
     include("model/core.jl")
+    include("update/core.jl")
 
 end
