@@ -15,11 +15,25 @@ function add_objective(m, sys)
         end
     end
     if sum(gens_cost) == 0.0
-        println("WARNING: No generator cost data found in system attributes. All operating cost set to zero.")
+        @warn "No generator cost data found in system attributes. All operating cost set to zero."
+    end
+
+    # Extract VoLL from system attributes
+    # The logic here is to reduce the VoLL linearly over the optimization horizon from voll_max to voll_min
+    if haskey(sys.attrs, "VoLL_max")
+        voll_max = parse(Float64, sys.attrs["VoLL_max"])
+    else
+        voll_max = parse(Float64, sys.attrs["VoLL"])
+    end
+    
+    if haskey(sys.attrs, "VoLL_min")
+        voll_min = parse(Float64, sys.attrs["VoLL_min"])
+    else
+        voll_min = voll_max * 0.99
     end
 
     @expression(m, operating_cost, sum(m[:p_gen][g,t] * gens_cost[g] for g=1:Ngens, t=1:N))
-    @expression(m, load_shedding_cost, sum(m[:load_shedding][r,t] * parse(Float64, sys.attrs["VoLL"]) for r=1:Nregions, t=1:N))
+    @expression(m, load_shedding_cost, sum(m[:load_shedding][r,t] * (voll_max - (voll_max - voll_min)/(N-1) * (t-1)) for r=1:Nregions, t=1:N))
     @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * 2 for s=1:length(sys.storages.names), t=1:N))
     @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * 1 for gs=1:length(sys.generatorstorages.names), t=1:N))
 

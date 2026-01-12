@@ -25,6 +25,7 @@ function updateMarketExpectationDispatch(sys, res; include_genstorage=true)
         sys.generatorstorages.gridinjection_capacity .= 0
         sys.generatorstorages.discharge_capacity .= 0
         sys.generatorstorages.energy_capacity .= 0
+        sys.generatorstorages.inflow .= 0
     end
     
     return sys

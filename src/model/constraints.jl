@@ -69,17 +69,17 @@ function add_constraints_storageConservation(m, sys)
     genstor_discharge_eff = round.(sum(sys.generatorstorages.discharge_efficiency, dims=2) ./ size(sys.generatorstorages.discharge_efficiency, 2); digits=4)
 
     if sum(stor_charge_eff .< maximum(sys.storages.charge_efficiency, dims=2)) > 0.001
-        println("WARNING: Storage charge efficiencies seem to vary over time. Using average efficiencies in conservation constraints.")
+        @warn "Storage charge efficiencies seem to vary over time. Using average efficiencies in conservation constraints."
     end
     if sum(stor_discharge_eff .< maximum(sys.storages.discharge_efficiency, dims=2)) > 0.001
-        println("WARNING: Storage discharge efficiencies seem to vary over time. Using average efficiencies in conservation constraints.")
+        @warn "Storage discharge efficiencies seem to vary over time. Using average efficiencies in conservation constraints."
     end
 
     if sum(genstor_charge_eff .< maximum(sys.generatorstorages.charge_efficiency, dims=2)) > 0.001
-        println("WARNING: Generator-Storage charge efficiencies seem to vary over time. Using average efficiencies in conservation constraints.")
+        @warn "Generator-Storage charge efficiencies seem to vary over time. Using average efficiencies in conservation constraints."
     end
     if sum(genstor_discharge_eff .< maximum(sys.generatorstorages.discharge_efficiency, dims=2)) > 0.001
-        println("WARNING: Generator-Storage discharge efficiencies seem to vary over time. Using average efficiencies in conservation constraints.")
+        @warn "Generator-Storage discharge efficiencies seem to vary over time. Using average efficiencies in conservation constraints."
     end
 
     # Storage conservation constraints

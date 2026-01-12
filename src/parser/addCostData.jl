@@ -11,7 +11,7 @@ function addGenCostData(sys::PRAS.SystemModel, input_folder::String)
 
     # Load generator cost data
     if !isfile(generator_input_file)
-        println("WARNING: No generator cost data file provided. All operating cost set to zero.")
+        @warn "No generator cost data file provided. All operating cost set to zero."
         Ngens = length(sys.generators.names);
         for i in 1:Ngens
             sys.attrs["cvar_" * string(i)] = "0"
@@ -27,9 +27,10 @@ function addGenCostData(sys::PRAS.SystemModel, input_folder::String)
     end
 end
 
-function addVollData(sys::PRAS.SystemModel; voll_value::Float64=20300.0)
+function addVollData(sys::PRAS.SystemModel; voll_value::Float64=20300.0, voll_min_value::Float64=20200.0)
 
     sys.attrs["VoLL"] = string(round(Int, voll_value))
+    sys.attrs["VoLL_min"] = string(round(Int, voll_min_value))
 
     return sys
 end

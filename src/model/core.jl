@@ -10,7 +10,7 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
 
     # First check that the optimisation window is larger than the step size
     if optimisation_window < move_forward
-        error("The optimisation window must be larger than or equal to the move forward step size.")
+        @error "The optimisation window must be larger than or equal to the move forward step size."
     end
 
     sys = addGenCostData(sys, input_folder)
@@ -52,11 +52,12 @@ end
 
 function run_operation_model(m, sys; output_folder_schedule::String="")
 
+    # Check if schedule files already exist
     if "case" in keys(sys.attrs) && output_folder_schedule != ""
         case_name = sys.attrs["case"]
         output_filepath_test = joinpath(output_folder_schedule, case_name * "_stor_charging.csv")
         if ispath(output_filepath_test)
-            println("Loading schedule from existing files in: ", output_folder_schedule)
+            @info "Loading schedule from existing files in: " * output_folder_schedule
             stor_charging = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_charging.csv"), DataFrames.DataFrame; header=false)
             stor_discharging = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_discharging.csv"), DataFrames.DataFrame; header=false)
             stor_energy = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_energy.csv"), DataFrames.DataFrame; header=false)
@@ -75,12 +76,15 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
 
     # Initialise result parameters
     full_horizon, _ = get_params(sys)
-    stor_charging = zeros(Int, length(sys.storages.names), full_horizon)
-    stor_discharging = zeros(Int, length(sys.storages.names), full_horizon)
-    stor_energy = zeros(Int, length(sys.storages.names), full_horizon)
-    genstor_charging = zeros(Int, length(sys.generatorstorages.names), full_horizon)
-    genstor_discharging = zeros(Int, length(sys.generatorstorages.names), full_horizon)
-    genstor_energy = zeros(Int, length(sys.generatorstorages.names), full_horizon)
+    Nstors = length(sys.storages.names);
+    Ngenstors = length(sys.generatorstorages.names);
+
+    stor_charging = zeros(Int, Nstors, full_horizon)
+    stor_discharging = zeros(Int, Nstors, full_horizon)
+    stor_energy = zeros(Int, Nstors, full_horizon)
+    genstor_charging = zeros(Int, Ngenstors, full_horizon)
+    genstor_discharging = zeros(Int, Ngenstors, full_horizon)
+    genstor_energy = zeros(Int, Ngenstors, full_horizon)
 
     # Run the rolling horizon optimisation
     move_forward_step = m[:move_forward]
@@ -123,10 +127,10 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
 
         # Check if storage and generator-storage is operating as expected
         if sum(stor_charging[:, start_idx:end_idx] .* stor_discharging[:, start_idx:end_idx] .> 0) > 0
-            println("WARNING: Some storages are charging and discharging at the same time between time steps $start_idx and $end_idx.")
+            @warn "Some storages are charging and discharging at the same time between time steps $start_idx and $end_idx."
         end
         if sum(genstor_charging[:, start_idx:end_idx] .* genstor_discharging[:, start_idx:end_idx] .> 0) > 0
-            println("WARNING: Some generator-storages are charging and discharging at the same time between time steps $start_idx and $end_idx.")
+            @warn "Some generator-storages are charging and discharging at the same time between time steps $start_idx and $end_idx."
         end
 
     end
@@ -141,7 +145,7 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
 
     if (output_folder_schedule != "") && isdir(output_folder_schedule)
         if !("case" in keys(sys.attrs))
-            println("WARNING: 'case' attribute not found in system. Cannot save schedule.")
+            @warn "'case' attribute not found in system attributes. Couldn't save schedule."
         else
             case_name = sys.attrs["case"]
             CSV.write(joinpath(output_folder_schedule, case_name * "_stor_charging.csv"), Tables.table(res_schedule.stor_charging); writeheader=false)
