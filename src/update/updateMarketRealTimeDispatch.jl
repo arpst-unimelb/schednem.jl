@@ -5,9 +5,9 @@ function updateMarketRealTimeDispatch(sys, res; include_genstorage=true)
 
     """
     
-    sys.storages.energy_capacity .= hcat(res.stor_energy[:,1],res.stor_energy[:,1:end-1])
+    sys.storages.energy_capacity .= res.stor_energy[:,:]
     if include_genstorage
-        sys.generatorstorages.energy_capacity .= hcat(res.genstor_energy[:,1],res.genstor_energy[:,1:end-1])
+        sys.generatorstorages.energy_capacity .= res.genstor_energy[:,:]
     end
     
     return sys
