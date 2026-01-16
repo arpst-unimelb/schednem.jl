@@ -90,6 +90,8 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
     genstor_energy = zeros(Int, Ngenstors, full_horizon)
     genstor_energy_initial = zeros(Int, Ngenstors)
 
+    # TODO: Add updating initial energy here from sys.storages attributes when available in PRAS
+
     # Run the rolling horizon optimisation
     move_forward_step = m[:move_forward]
     start_idxs = 1:move_forward_step:full_horizon
@@ -101,8 +103,8 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
 
         # Determine initial state of charge for storages and generator-storages
         if start_idx == 1
-            initial_soc_stor = [0.0 for s in 1:Nstors]
-            initial_soc_genstor = [0.0 for gs in 1:Ngenstors]
+            initial_soc_stor = stor_energy_initial
+            initial_soc_genstor = genstor_energy_initial
         else
             initial_soc_stor = value.(m[:e_stor])[:,move_forward_step - 1]
             initial_soc_genstor = value.(m[:e_genstor])[:,move_forward_step - 1]
