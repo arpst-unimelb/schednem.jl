@@ -61,9 +61,11 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
             stor_charging = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_charging.csv"), DataFrames.DataFrame; header=false)
             stor_discharging = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_discharging.csv"), DataFrames.DataFrame; header=false)
             stor_energy = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_energy.csv"), DataFrames.DataFrame; header=false)
+            stor_energy_initial = CSV.read(joinpath(output_folder_schedule, case_name * "_stor_energy_initial.csv"), DataFrames.DataFrame; header=false)
             genstor_charging = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_charging.csv"), DataFrames.DataFrame; header=false)
             genstor_discharging = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_discharging.csv"), DataFrames.DataFrame; header=false)
             genstor_energy = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_energy.csv"), DataFrames.DataFrame; header=false)
+            genstor_energy_initial = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_energy_initial.csv"), DataFrames.DataFrame; header=false)
             return (stor_charging=Matrix(stor_charging),
                 stor_discharging=Matrix(stor_discharging),
                 stor_energy=Matrix(stor_energy),
@@ -82,9 +84,11 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
     stor_charging = zeros(Int, Nstors, full_horizon)
     stor_discharging = zeros(Int, Nstors, full_horizon)
     stor_energy = zeros(Int, Nstors, full_horizon)
+    stor_energy_initial = zeros(Int, Nstors)
     genstor_charging = zeros(Int, Ngenstors, full_horizon)
     genstor_discharging = zeros(Int, Ngenstors, full_horizon)
     genstor_energy = zeros(Int, Ngenstors, full_horizon)
+    genstor_energy_initial = zeros(Int, Ngenstors)
 
     # Run the rolling horizon optimisation
     move_forward_step = m[:move_forward]
@@ -97,8 +101,8 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
 
         # Determine initial state of charge for storages and generator-storages
         if start_idx == 1
-            initial_soc_stor = [0.0 for s in 1:length(sys.storages.names)]
-            initial_soc_genstor = [0.0 for gs in 1:length(sys.generatorstorages.names)]
+            initial_soc_stor = [0.0 for s in 1:Nstors]
+            initial_soc_genstor = [0.0 for gs in 1:Ngenstors]
         else
             initial_soc_stor = value.(m[:e_stor])[:,move_forward_step - 1]
             initial_soc_genstor = value.(m[:e_genstor])[:,move_forward_step - 1]
@@ -117,13 +121,15 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
         end_idx = min(start_idx + m[:N] - 1, full_horizon)
         time_steps = end_idx - start_idx + 1
 
-        stor_charging[:, start_idx:end_idx] = round.(Int,value.(m[:p_stor_charge][:, 1:time_steps]))
-        stor_discharging[:, start_idx:end_idx] = round.(Int,value.(m[:p_stor_discharge][:, 1:time_steps]))
-        stor_energy[:, start_idx:end_idx] = round.(Int,value.(m[:e_stor][:, 1:time_steps]))
+        res_window = get_results(m)
 
-        genstor_charging[:, start_idx:end_idx] = round.(Int,value.(m[:p_genstor_charge][:, 1:time_steps]))
-        genstor_discharging[:, start_idx:end_idx] = round.(Int,value.(m[:p_genstor_discharge][:, 1:time_steps]))
-        genstor_energy[:, start_idx:end_idx] = round.(Int,value.(m[:e_genstor][:, 1:time_steps]))
+        stor_charging[:, start_idx:end_idx] = res_window.stor_charging[:, 1:time_steps]
+        stor_discharging[:, start_idx:end_idx] = res_window.stor_discharging[:, 1:time_steps]
+        stor_energy[:, start_idx:end_idx] = res_window.stor_energy[:, 1:time_steps]
+
+        genstor_charging[:, start_idx:end_idx] = res_window.genstor_charging[:, 1:time_steps]
+        genstor_discharging[:, start_idx:end_idx] = res_window.genstor_discharging[:, 1:time_steps]
+        genstor_energy[:, start_idx:end_idx] = res_window.genstor_energy[:, 1:time_steps]
 
         # Check if storage and generator-storage is operating as expected
         if sum(stor_charging[:, start_idx:end_idx] .* stor_discharging[:, start_idx:end_idx] .> 0) > 0
@@ -138,9 +144,11 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
     res_schedule = (stor_charging=stor_charging,
         stor_discharging=stor_discharging,
         stor_energy=stor_energy,
+        stor_energy_initial=stor_energy_initial,
         genstor_charging=genstor_charging,
         genstor_discharging=genstor_discharging,
-        genstor_energy=genstor_energy
+        genstor_energy=genstor_energy,
+        genstor_energy_initial=genstor_energy_initial
     )
 
     if (output_folder_schedule != "") && isdir(output_folder_schedule)

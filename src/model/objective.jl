@@ -19,7 +19,8 @@ function add_objective(m, sys)
     end
 
     # Extract VoLL from system attributes
-    # The logic here is to reduce the VoLL linearly over the optimization horizon from voll_max to voll_min
+    # Goal: Storage operation should be greedy, i.e. any discharge should be preferred over load shedding as early as possible
+    # - This is achieved by gradually slightly reducing the load shedding cost over the optimisation horizon
     if haskey(sys.attrs, "VoLL_max")
         voll_max = parse(Float64, sys.attrs["VoLL_max"])
     else

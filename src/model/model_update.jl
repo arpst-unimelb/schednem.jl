@@ -4,7 +4,7 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor::Vector{F
 
     if total_length < start_index + m[:N] - 1
         N = total_length - start_index + 1
-        println("Last optimisation window is shorter ($N) than optimisation_window ($(m[:N])). Remaining values are taken from previous window.")
+        @warn "Last optimisation window is shorter ($N) than optimisation_window ($(m[:N])). Remaining values are taken from previous window."
     else
         N = m[:N]
     end
@@ -26,12 +26,18 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor::Vector{F
             set_parameter_value(m[:stor_charge_cap][s,t], sys.storages.charge_capacity[s, start_index + t - 1])
             set_parameter_value(m[:stor_discharge_cap][s,t], sys.storages.discharge_capacity[s, start_index + t - 1])
             set_parameter_value(m[:stor_energy_cap][s,t], sys.storages.energy_capacity[s, start_index + t - 1])
+            set_parameter_value(m[:stor_carryover_eff][s,t], sys.storages.carryover_efficiency[s, start_index + t - 1])
+            set_parameter_value(m[:stor_charge_eff][s,t], sys.storages.charge_efficiency[s, start_index + t - 1])
+            set_parameter_value(m[:stor_discharge_eff][s,t], sys.storages.discharge_efficiency[s, start_index + t - 1])
         end
         for gs in 1:Ngenstors
             set_parameter_value(m[:genstor_charge_cap][gs,t], sys.generatorstorages.charge_capacity[gs, start_index + t - 1])
             set_parameter_value(m[:genstor_discharge_cap][gs,t], sys.generatorstorages.discharge_capacity[gs, start_index + t - 1])
             set_parameter_value(m[:genstor_energy_cap][gs,t], sys.generatorstorages.energy_capacity[gs, start_index + t - 1])
             set_parameter_value(m[:genstor_inflow][gs,t], sys.generatorstorages.inflow[gs, start_index + t - 1])
+            set_parameter_value(m[:genstor_carryover_eff][gs,t], sys.generatorstorages.carryover_efficiency[gs, start_index + t - 1])
+            set_parameter_value(m[:genstor_charge_eff][gs,t], sys.generatorstorages.charge_efficiency[gs, start_index + t - 1])
+            set_parameter_value(m[:genstor_discharge_eff][gs,t], sys.generatorstorages.discharge_efficiency[gs, start_index + t - 1])
         end
         for l in 1:Ninterfaces
             set_parameter_value(m[:interface_limit_forward][l,t], sys.interfaces.limit_forward[l, start_index + t - 1])
