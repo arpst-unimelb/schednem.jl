@@ -1,4 +1,4 @@
-function update_model_parameters(m, sys, start_index, initial_soc_stor::Vector{Float64}=Float64[], initial_soc_genstor::Vector{Float64}=Float64[])
+function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initial_soc_genstor=[])
 
     total_length, _ = get_params(sys)
 
@@ -15,42 +15,38 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor::Vector{F
     Ngenstors = length(sys.generatorstorages.names);
     Ninterfaces = length(sys.interfaces.regions_from);
 
-    for t in 1:N
-        for r in 1:Nregions
-            set_parameter_value(m[:dem][r,t], sys.regions.load[r, start_index + t - 1])
-        end
-        for g in 1:Ngens
-            set_parameter_value(m[:gen_cap][g,t], sys.generators.capacity[g, start_index + t - 1])
-        end
-        for s in 1:Nstors
-            set_parameter_value(m[:stor_charge_cap][s,t], sys.storages.charge_capacity[s, start_index + t - 1])
-            set_parameter_value(m[:stor_discharge_cap][s,t], sys.storages.discharge_capacity[s, start_index + t - 1])
-            set_parameter_value(m[:stor_energy_cap][s,t], sys.storages.energy_capacity[s, start_index + t - 1])
-            set_parameter_value(m[:stor_carryover_eff][s,t], sys.storages.carryover_efficiency[s, start_index + t - 1])
-            set_parameter_value(m[:stor_charge_eff][s,t], sys.storages.charge_efficiency[s, start_index + t - 1])
-            set_parameter_value(m[:stor_discharge_eff][s,t], sys.storages.discharge_efficiency[s, start_index + t - 1])
-        end
-        for gs in 1:Ngenstors
-            set_parameter_value(m[:genstor_charge_cap][gs,t], sys.generatorstorages.charge_capacity[gs, start_index + t - 1])
-            set_parameter_value(m[:genstor_discharge_cap][gs,t], sys.generatorstorages.discharge_capacity[gs, start_index + t - 1])
-            set_parameter_value(m[:genstor_energy_cap][gs,t], sys.generatorstorages.energy_capacity[gs, start_index + t - 1])
-            set_parameter_value(m[:genstor_inflow][gs,t], sys.generatorstorages.inflow[gs, start_index + t - 1])
-            set_parameter_value(m[:genstor_carryover_eff][gs,t], sys.generatorstorages.carryover_efficiency[gs, start_index + t - 1])
-            set_parameter_value(m[:genstor_charge_eff][gs,t], sys.generatorstorages.charge_efficiency[gs, start_index + t - 1])
-            set_parameter_value(m[:genstor_discharge_eff][gs,t], sys.generatorstorages.discharge_efficiency[gs, start_index + t - 1])
-        end
-        for l in 1:Ninterfaces
-            set_parameter_value(m[:interface_limit_forward][l,t], sys.interfaces.limit_forward[l, start_index + t - 1])
-            set_parameter_value(m[:interface_limit_backward][l,t], sys.interfaces.limit_backward[l, start_index + t - 1])
-        end
-    end
+    t = 1:N
+    
+    # Update the load in all regions
+    set_parameter_value.(m[:dem][:,t], sys.regions.load[:, start_index .+ t .- 1])
 
-    for s in 1:Nstors
-        set_parameter_value(m[:stor_initial_soc][s], initial_soc_stor[s])
-    end
-    for gs in 1:Ngenstors
-        set_parameter_value(m[:genstor_initial_soc][gs], initial_soc_genstor[gs])
-    end
+    # Update generator capacities
+    set_parameter_value.(m[:gen_cap][:,t], sys.generators.capacity[:, start_index .+ t .- 1])
+
+    # Update line capacities
+    set_parameter_value.(m[:interface_limit_forward][:,t], sys.interfaces.limit_forward[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:interface_limit_backward][:,t], sys.interfaces.limit_backward[:, start_index .+ t .- 1])
+
+    # Update storage and generator-storage capacities
+    set_parameter_value.(m[:stor_charge_cap][:,t], sys.storages.charge_capacity[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:stor_discharge_cap][:,t], sys.storages.discharge_capacity[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:stor_energy_cap][:,t], sys.storages.energy_capacity[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:genstor_charge_cap][:,t], sys.generatorstorages.charge_capacity[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:genstor_discharge_cap][:,t], sys.generatorstorages.discharge_capacity[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:genstor_energy_cap][:,t], sys.generatorstorages.energy_capacity[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:genstor_inflow][:,t], sys.generatorstorages.inflow[:, start_index .+ t .- 1])
+
+    # Update initial state of charge
+    set_parameter_value.(m[:stor_initial_soc][:], initial_soc_stor[:])
+    set_parameter_value.(m[:genstor_initial_soc][:], initial_soc_genstor[:])
+
+    # Update storage efficiencies
+    set_parameter_value.(m[:stor_carryover_eff][:,t], sys.storages.carryover_efficiency[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:stor_charge_eff][:,t], sys.storages.charge_efficiency[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:stor_discharge_eff_inverse][:,t], 1.0 ./ sys.storages.discharge_efficiency[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:genstor_carryover_eff][:,t], sys.generatorstorages.carryover_efficiency[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:genstor_charge_eff][:,t], sys.generatorstorages.charge_efficiency[:, start_index .+ t .- 1])
+    set_parameter_value.(m[:genstor_discharge_eff_inverse][:,t], 1.0 ./ sys.generatorstorages.discharge_efficiency[:, start_index .+ t .- 1])
 
     return m
 end

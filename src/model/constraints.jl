@@ -64,21 +64,21 @@ function add_constraints_storageConservation(m, sys)
     # Storage conservation constraints
     @constraint(m, storConservationStart[s=1:Nstors],
         m[:e_stor][s,1] == m[:stor_initial_soc][s] * m[:stor_carryover_eff][s,1] + m[:p_stor_charge][s,1] * m[:stor_charge_eff][s,1] -
-         m[:p_stor_discharge][s,1] / m[:stor_discharge_eff][s,1]
+         m[:p_stor_discharge][s,1] * m[:stor_discharge_eff_inverse][s,1]
     )
     @constraint(m, storConservation[s=1:Nstors, t=2:N],
         m[:e_stor][s,t] == m[:e_stor][s,t-1] * m[:stor_carryover_eff][s,t] + m[:p_stor_charge][s,t] * m[:stor_charge_eff][s,t] -
-         m[:p_stor_discharge][s,t] / m[:stor_discharge_eff][s,t]
+         m[:p_stor_discharge][s,t] * m[:stor_discharge_eff_inverse][s,t]
     )
     
     # Generator-Storage conservation constraints (use inequality here to allow for spillages!)
     @constraint(m, genstorConservationStart[gs=1:Ngenstors],
         m[:e_genstor][gs,1] <= m[:genstor_initial_soc][gs] * m[:genstor_carryover_eff][gs,1] + m[:p_genstor_charge][gs,1] * m[:genstor_charge_eff][gs,1] -
-         m[:p_genstor_discharge][gs,1] / m[:genstor_discharge_eff][gs,1] + m[:genstor_inflow][gs,1]
+         m[:p_genstor_discharge][gs,1] * m[:genstor_discharge_eff_inverse][gs,1] + m[:genstor_inflow][gs,1]
     )
     @constraint(m, genstorConservation[gs=1:Ngenstors, t=2:N],
         m[:e_genstor][gs,t] <= m[:e_genstor][gs,t-1] * m[:genstor_carryover_eff][gs,t] + m[:p_genstor_charge][gs,t] * m[:genstor_charge_eff][gs,t] -
-         m[:p_genstor_discharge][gs,t] / m[:genstor_discharge_eff][gs,t] + m[:genstor_inflow][gs,t]
+         m[:p_genstor_discharge][gs,t] * m[:genstor_discharge_eff_inverse][gs,t] + m[:genstor_inflow][gs,t]
     )
 
     return m

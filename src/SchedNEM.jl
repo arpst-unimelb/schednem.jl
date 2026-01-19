@@ -8,6 +8,7 @@ module SchedNEM
     using PRAS
     import Tables
 
+    include("utils.jl")
     include("parser/addCostData.jl")
     include("model/core.jl")
     include("update/core.jl")
