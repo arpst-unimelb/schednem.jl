@@ -7,6 +7,9 @@ function add_constraint_powerBalance(m, sys)
 
     Nregions = length(sys.regions.names);
     Ninterfaces = length(sys.interfaces.regions_from);
+    
+    # These constraints are added as constraints (not bounds)
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
 
     # Balance constraints
     @constraint(m, # For each region and time step
@@ -31,6 +34,9 @@ function add_constraint_techLimits(m, sys)
     Ninterfaces = length(sys.interfaces.regions_from);
     Nstors = length(sys.storages.names);
     Ngenstors = length(sys.generatorstorages.names);
+
+    # These constraints are added as constraints (not bounds)
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
 
     # Generator limits
     @constraint(m, genLimits[g=1:Ngens, t=1:N], m[:p_gen][g,t] <= m[:gen_cap][g,t])
@@ -60,6 +66,9 @@ function add_constraints_storageConservation(m, sys)
     N = m[:N]
     Nstors = length(sys.storages.names);
     Ngenstors = length(sys.generatorstorages.names);
+
+    # These constraints are added as constraints (not bounds)
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
 
     # Storage conservation constraints
     @constraint(m, storConservationStart[s=1:Nstors],
