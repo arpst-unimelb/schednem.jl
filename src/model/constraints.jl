@@ -16,7 +16,7 @@ function add_constraint_powerBalance(m, sys)
         powerBalance[r=1:Nregions, t=1:N],
             sum(m[:p_gen][g,t] for g in sys.region_gen_idxs[r]) +
             sum(m[:p_genstor_discharge][gs,t] for gs in sys.region_genstor_idxs[r]) +
-            sum(m[:p_interface][l,t] * m[:connection_matrix][l,r] for l in 1:Ninterfaces) +
+            sum((m[:p_interface_forward][l,t] - m[:p_interface_backward][l,t]) * m[:connection_matrix][l,r] for l in 1:Ninterfaces) +
             sum(m[:p_stor_discharge][s,t] for s in sys.region_stor_idxs[r]) ==
             m[:dem][r,t] - m[:load_shedding][r,t] +
             sum(m[:p_stor_charge][s,t] for s in sys.region_stor_idxs[r]) +
@@ -52,8 +52,8 @@ function add_constraint_techLimits(m, sys)
     @constraint(m, genstorEnergyLimitsUp[gs=1:Ngenstors, t=1:N], m[:e_genstor][gs,t] <= m[:genstor_energy_cap][gs,t])
 
     # Interface limits
-    @constraint(m, interfacesLimitsForward[l=1:Ninterfaces, t=1:N], m[:p_interface][l,t] <= m[:interface_limit_forward][l,t])
-    @constraint(m, interfacesLimitsBackward[l=1:Ninterfaces, t=1:N], m[:p_interface][l,t] >= -m[:interface_limit_backward][l,t])
+    @constraint(m, interfacesLimitsForward[l=1:Ninterfaces, t=1:N], m[:p_interface_forward][l,t] <= m[:interface_limit_forward][l,t])
+    @constraint(m, interfacesLimitsBackward[l=1:Ninterfaces, t=1:N], m[:p_interface_backward][l,t] <= m[:interface_limit_backward][l,t])
 
     return m
 end

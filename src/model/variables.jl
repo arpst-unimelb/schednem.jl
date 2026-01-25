@@ -20,7 +20,8 @@ function add_variables(model, sys)
     @variable(model, p_genstor_discharge[1:Ngenstors, 1:N] >= 0)
     @variable(model, e_genstor[1:Ngenstors, 1:N] >= 0)
 
-    @variable(model, p_interface[1:Ninterfaces, 1:N])
+    @variable(model, p_interface_forward[1:Ninterfaces, 1:N] >= 0)
+    @variable(model, p_interface_backward[1:Ninterfaces, 1:N] >= 0)
 
     @variable(model, load_shedding[1:Nregions, 1:N] >= 0)
 

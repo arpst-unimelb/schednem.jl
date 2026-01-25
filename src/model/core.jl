@@ -165,7 +165,7 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
             CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_discharging.csv"), Tables.table(res_schedule.genstor_discharging); writeheader=false)
             CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_energy.csv"), Tables.table(res_schedule.genstor_energy); writeheader=false)
         end
-    end    
+    end
 
     return res_schedule
 end
