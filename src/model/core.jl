@@ -161,9 +161,11 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
             CSV.write(joinpath(output_folder_schedule, case_name * "_stor_charging.csv"), Tables.table(res_schedule.stor_charging); writeheader=false)
             CSV.write(joinpath(output_folder_schedule, case_name * "_stor_discharging.csv"), Tables.table(res_schedule.stor_discharging); writeheader=false)
             CSV.write(joinpath(output_folder_schedule, case_name * "_stor_energy.csv"), Tables.table(res_schedule.stor_energy); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_stor_energy_initial.csv"), Tables.table(res_schedule.stor_energy_initial'); writeheader=false)
             CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_charging.csv"), Tables.table(res_schedule.genstor_charging); writeheader=false)
             CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_discharging.csv"), Tables.table(res_schedule.genstor_discharging); writeheader=false)
             CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_energy.csv"), Tables.table(res_schedule.genstor_energy); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_energy_initial.csv"), Tables.table(res_schedule.genstor_energy_initial'); writeheader=false)
         end
     end
 
