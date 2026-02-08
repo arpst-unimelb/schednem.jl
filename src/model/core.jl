@@ -51,6 +51,7 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     m = add_constraint_powerBalance(m, sys)
     m = add_constraint_techLimits(m)
     m = add_constraints_storageConservation(m)
+    m = add_constraints_genstorEnergyTarget(m)
 
     return m
 end
@@ -102,9 +103,9 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
     start_idxs = 1:move_forward_step:full_horizon
     for start_idx in start_idxs
         if start_idx % (round(Int,full_horizon / 10)) == 0
-            println("Optimisation progress: Time step $start_idx of $full_horizon")
+            println("Optimisation progress: Time step ", start_idx, " of ", full_horizon)
         end
-        println("Optimising from time step $start_idx to $(min(start_idx + m[:N] - 1, full_horizon))")
+        println("Optimising from time step ", start_idx, " to ", min(start_idx + m[:N] - 1, full_horizon))
 
         # Determine initial state of charge for storages and generator-storages
         if start_idx == 1
