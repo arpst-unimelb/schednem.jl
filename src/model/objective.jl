@@ -3,8 +3,12 @@ function add_objective(m, sys)
 
     # Extract system parameters
     N = m[:N]
-    Nregions = length(sys.regions.names);
-    Ngens = length(sys.generators.names);
+    Nregions = m[:Nregions]
+    Ngens = m[:Ngens]
+    Nstors = m[:Nstors]
+    Ngenstors = m[:Ngenstors]
+    Ninterfaces = m[:Ninterfaces]
+
 
     # Extract the generator costs from the system attributes (else zero)
     gen_ids = parse.(Int, reduce(hcat, split.(sys.generators.names, "_"))[1,:])
@@ -29,18 +33,27 @@ function add_objective(m, sys)
     
     if haskey(sys.attrs, "VoLL_min")
         voll_min = parse(Float64, sys.attrs["VoLL_min"])
+        if voll_min >= voll_max
+            @warn "VoLL_min should be less than VoLL_max to ensure load shedding cost decreases over time to obtain greedy dispatch. Setting VoLL_min to 99% of VoLL_max."
+            voll_min = voll_max * 0.99
+        end
     else
         voll_min = voll_max * 0.99
     end
 
+    if voll_min * 0.99 <= maximum(gens_cost)
+        @error "VoLL_min * 0.99 should be greater than the maximum generator cost to ensure load shedding and genstor penalty are always more expensive than generation. Please update voll_min in system attributes."
+    end
+
     @expression(m, operating_cost, sum(m[:p_gen][g,t] * gens_cost[g] for g=1:Ngens, t=1:N))
     @expression(m, load_shedding_cost, sum(m[:load_shedding][r,t] * (voll_max - (voll_max - voll_min)/(N-1) * (t-1)) for r=1:Nregions, t=1:N))
-    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * 1 for s=1:length(sys.storages.names), t=1:N))
-    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * 2 for gs=1:length(sys.generatorstorages.names), t=1:N))
-    @expression(m, flow_penalty, sum((m[:p_interface_forward][l,t] + m[:p_interface_backward][l,t]) * 1.0 for l=1:length(sys.interfaces.regions_from), t=1:N))
+    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * 1 for s=1:Nstors, t=1:N))
+    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * 2 for gs=1:Ngenstors, t=1:N))
+    @expression(m, flow_penalty, sum((m[:p_interface_forward][l,t] + m[:p_interface_backward][l,t]) * 1.0 for l=1:Ninterfaces, t=1:N))
+    @expression(m, genstor_energy_target_penalty, sum(m[:genstor_energy_target_slack][gs] * voll_min * 0.99 for gs=1:Ngenstors))
 
     # Objective: Minimize operating cost
-    @objective(m, Min, operating_cost + load_shedding_cost + storage_discharging_cost + genstorage_discharging_cost + flow_penalty)
+    @objective(m, Min, operating_cost + load_shedding_cost + storage_discharging_cost + genstorage_discharging_cost + flow_penalty + genstor_energy_target_penalty)
 
     return m
 end

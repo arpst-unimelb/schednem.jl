@@ -1,12 +1,12 @@
 #%% ========================================================================================================================
-function add_variables(model, sys)
+function add_variables(model)
 
     # Extract system parameters
-    Nregions = length(sys.regions.names);
-    Ngens = length(sys.generators.names);
-    Nstors = length(sys.storages.names);
-    Ngenstors = length(sys.generatorstorages.names);
-    Ninterfaces = length(sys.interfaces.regions_from);
+    Nregions = model[:Nregions]
+    Ngens = model[:Ngens]
+    Nstors = model[:Nstors]
+    Ngenstors = model[:Ngenstors]
+    Ninterfaces = model[:Ninterfaces]
     N = model[:N]
 
     # Define decision variables
@@ -24,6 +24,9 @@ function add_variables(model, sys)
     @variable(model, p_interface_backward[1:Ninterfaces, 1:N] >= 0)
 
     @variable(model, load_shedding[1:Nregions, 1:N] >= 0)
+
+    # Add slack variable to have genstor target as soft constraint (to avoid infeasibility if target is not achievable)
+    @variable(model, genstor_energy_target_slack[1:Ngenstors] >= 0)
 
     # And define all the parameters that will be updated (so the model doesn't need to be rebuilt)
     @variables(model, begin
@@ -47,6 +50,7 @@ function add_variables(model, sys)
         genstor_carryover_eff[1:Ngenstors, 1:N] in Parameter(1.0)
         genstor_charge_eff[1:Ngenstors, 1:N] in Parameter(1.0)
         genstor_discharge_eff_inverse[1:Ngenstors, 1:N] in Parameter(1.0)
+        genstor_energy_target[1:Ngenstors] in Parameter(0.0)
 
         interface_limit_forward[1:Ninterfaces, 1:N] in Parameter(0.0)
         interface_limit_backward[1:Ninterfaces, 1:N] in Parameter(0.0)

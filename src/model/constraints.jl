@@ -1,12 +1,15 @@
+"""
+    add_constraint_powerBalance(m, sys)
 
+Note: The PRAS system is needed as input to assign the units to the appropriate regions (for generation, storage, and interfaces).
 
+"""
 function add_constraint_powerBalance(m, sys)
 
     # Extract system parameters
     N = m[:N]
-
-    Nregions = length(sys.regions.names);
-    Ninterfaces = length(sys.interfaces.regions_from);
+    Nregions = m[:Nregions]
+    Ninterfaces = m[:Ninterfaces]
     
     # These constraints are added as constraints (not bounds)
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
@@ -26,14 +29,14 @@ function add_constraint_powerBalance(m, sys)
 end
 
 #%% ========================================================================================================================
-function add_constraint_techLimits(m, sys)
+function add_constraint_techLimits(m)
 
     # Extract system parameters
     N = m[:N]
-    Ngens = length(sys.generators.names);
-    Ninterfaces = length(sys.interfaces.regions_from);
-    Nstors = length(sys.storages.names);
-    Ngenstors = length(sys.generatorstorages.names);
+    Ngens = m[:Ngens]
+    Ninterfaces = m[:Ninterfaces]
+    Nstors = m[:Nstors]
+    Ngenstors = m[:Ngenstors]
 
     # These constraints are added as constraints (not bounds)
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
@@ -60,12 +63,12 @@ end
 
 #%% ========================================================================================================================
 
-function add_constraints_storageConservation(m, sys)
+function add_constraints_storageConservation(m)
 
     # Extract system parameters
     N = m[:N]
-    Nstors = length(sys.storages.names);
-    Ngenstors = length(sys.generatorstorages.names);
+    Nstors = m[:Nstors]
+    Ngenstors = m[:Ngenstors]
 
     # These constraints are added as constraints (not bounds)
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
@@ -92,6 +95,29 @@ function add_constraints_storageConservation(m, sys)
 
     return m
 end
+
+#%% ========================================================================================================================
+"""
+    add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level)
+
+"""
+function add_constraints_genstorEnergyTarget(m)
+
+    # Extract system parameters
+    N = m[:N]
+    Ngenstors = m[:Ngenstors]
+
+    # These constraints are added as constraints (not bounds)
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+
+    # Generator-Storage energy target constraint (use inequality here to allow for infeasibility and penalize with slack variable)
+    @constraint(m, genstorEnergyTarget[gs=1:Ngenstors],
+        m[:e_genstor][gs,N] >= m[:genstor_energy_target][gs] - m[:genstor_energy_target_slack][gs]
+    )
+
+    return m
+end
+
 
 #%% ========================================================================================================================
 """
@@ -137,8 +163,8 @@ function add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_ene
 
     # Extract system parameters
     N = m[:N]
-    Nstors = length(sys.storages.names);
-    Ngenstors = length(sys.generatorstorages.names);
+    Nstors = m[:Nstors]
+    Ngenstors = m[:Ngenstors]
 
     # These constraints are added as constraints (not bounds)
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)

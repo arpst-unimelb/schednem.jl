@@ -33,19 +33,24 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     # Store model parameters as JuMP parameters
     m[:N] = optimisation_window  # Save the number of time steps as a parameter
     m[:move_forward] = move_forward  # Save the move forward step size as a parameter
+
     m[:Nregions] = Nregions  # Save the number of regions as a parameter
+    m[:Ngens] = length(sys.generators.names)  # Save the number of generators as a parameter
+    m[:Nstors] = length(sys.storages.names)  # Save the number of storages as a parameter
+    m[:Ngenstors] = length(sys.generatorstorages.names)  # Save the number of generator-storages as a parameter
+    m[:Ninterfaces] = Ninterfaces  # Save the number of interfaces as a parameter
     m[:connection_matrix] = connection_matrix  # Save the connection matrix as a parameter
 
     # Add decision variables
-    m = add_variables(m, sys)
+    m = add_variables(m)
 
     # Add objective function
     m = add_objective(m, sys)
 
     # Add constraints
     m = add_constraint_powerBalance(m, sys)
-    m = add_constraint_techLimits(m, sys)
-    m = add_constraints_storageConservation(m, sys)
+    m = add_constraint_techLimits(m)
+    m = add_constraints_storageConservation(m)
 
     return m
 end
