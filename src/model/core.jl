@@ -112,8 +112,8 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
             initial_soc_stor = stor_energy_initial
             initial_soc_genstor = genstor_energy_initial
         else
-            initial_soc_stor = value.(m[:e_stor])[:,move_forward_step - 1]
-            initial_soc_genstor = value.(m[:e_genstor])[:,move_forward_step - 1]
+            initial_soc_stor = value.(m[:e_stor])[:,move_forward_step]
+            initial_soc_genstor = value.(m[:e_genstor])[:,move_forward_step]
         end
 
         # Update model parameters
@@ -125,7 +125,7 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
         # Check if the optimization was successful
         @assert is_solved_and_feasible(m) "Optimization failed at time step $start_idx"    
 
-        # Extract results for the current optimisation window
+        # Extract results for full the current optimisation window
         end_idx = min(start_idx + m[:N] - 1, full_horizon)
         time_steps = end_idx - start_idx + 1
 
