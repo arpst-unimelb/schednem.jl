@@ -7,6 +7,7 @@ module SchedNEM
     import ParametricOptInterface as POI
     using PRAS
     import Tables
+    import Plots
 
     include("utils.jl")
     include("parser/addCostData.jl")

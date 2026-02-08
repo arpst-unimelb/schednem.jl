@@ -38,13 +38,13 @@ function plot_timeseries_results(m, sys; region::Int=1)
 
     comp_labels = ["Coal" "Gas" "Wind" "Solar PV" "Hydro" "Battery" "Load shedding"]
 
-    plt = areaplot(t, gen_stack ./ 1e3, color=[:black :grey 8 5 10 11 :red], fillalpha = 0.8, labels = comp_labels, lw=0, palette=:Spectral_11)
-    areaplot!(plt, t, charge_stack ./ 1e3, color=[10 11], fillalpha = 0.8, labels=["" ""], lw=0, palette=:Spectral_11)
-    plot!(plt, t, dem ./ 1e3; label = "Demand", lw = 2, lc = :black)
+    plt = Plots.areaplot(t, gen_stack ./ 1e3, color=[:black :grey 8 5 10 11 :red], fillalpha = 0.8, labels = comp_labels, lw=0, palette=:Spectral_11)
+    Plots.areaplot!(plt, t, charge_stack ./ 1e3, color=[10 11], fillalpha = 0.8, labels=["" ""], lw=0, palette=:Spectral_11)
+    Plots.plot!(plt, t, dem ./ 1e3; label = "Demand", lw = 2, lc = :black)
 
-    xlabel!("Hour")
-    ylabel!("Power [GW]")
-    title!("Region: $region | ENS: $(round(sum(shed))) MWh")
+    Plots.xlabel!("Hour")
+    Plots.ylabel!("Power [GW]")
+    Plots.title!("Region: $region | ENS: $(round(sum(shed))) MWh")
 
     return plt
 
