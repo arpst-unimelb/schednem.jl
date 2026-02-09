@@ -2,8 +2,6 @@
 include("constraints.jl")
 include("variables.jl")
 include("objective.jl")
-include("model_update.jl")
-include("model_readout.jl")
 
 #%% =======================================================================================================================
 function build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, input_folder::String="", optimiser=HiGHS.Optimizer())
