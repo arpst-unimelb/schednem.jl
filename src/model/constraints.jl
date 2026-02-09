@@ -139,9 +139,6 @@ function remove_constraints_EnergyFixed(m)
 end
 
 
-
-
-
 """
     add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level)
 
@@ -150,6 +147,7 @@ end
 - `index`: The time step index after which the storage energy levels are to be fixed. (energy is always at the end of the time step)
 - `storage_energy_level`: A vector of length Nstors specifying the fixed energy level for each storage after the specified time step index.
 - `genstor_energy_level`: A vector of length Ngenstors specifying the fixed energy level for each generator-storage after the specified time step index.
+- `tolerance`: A non-negative scalar specifying the tolerance for fixing the energy levels. The constraints will ensure that the energy levels are greater than or equal to the specified levels minus this tolerance.
 
 # Description
 
@@ -157,7 +155,7 @@ end
 
 
 """
-function add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level)
+function add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level; tolerance=0.0)
 
     m = remove_constraints_EnergyFixed(m) # Remove existing constraints if they exist
 
@@ -170,8 +168,8 @@ function add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_ene
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
 
     # Storage energy level fixed constraints
-    @constraint(m, storEnergyFixed[s=1:Nstors], m[:e_stor][s,index] == storage_energy_level[s])
-    @constraint(m, genstorEnergyFixed[gs=1:Ngenstors], m[:e_genstor][gs,index] == genstor_energy_level[gs])
+    @constraint(m, storEnergyFixed[s=1:Nstors], m[:e_stor][s,index] >= storage_energy_level[s] - tolerance)
+    @constraint(m, genstorEnergyFixed[gs=1:Ngenstors], m[:e_genstor][gs,index] >= genstor_energy_level[gs] - tolerance)
 
     return m
 end
