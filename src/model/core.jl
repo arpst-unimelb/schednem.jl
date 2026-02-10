@@ -11,8 +11,8 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
         @error "The optimisation window must be larger than or equal to the move forward step size."
     end
 
-    sys = addGenCostData(sys, input_folder)
     sys = addVollData(sys)
+    sys = addGenCostData(sys, input_folder)
 
     # Get the parameters of the system model
     Nregions = length(sys.regions.names);
@@ -36,6 +36,7 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     m[:Ngens] = length(sys.generators.names)  # Save the number of generators as a parameter
     m[:Nstors] = length(sys.storages.names)  # Save the number of storages as a parameter
     m[:Ngenstors] = length(sys.generatorstorages.names)  # Save the number of generator-storages as a parameter
+    m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
     m[:Ninterfaces] = Ninterfaces  # Save the number of interfaces as a parameter
     m[:connection_matrix] = connection_matrix  # Save the connection matrix as a parameter
 
@@ -50,6 +51,7 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     m = add_constraint_techLimits(m)
     m = add_constraints_storageConservation(m)
     m = add_constraints_genstorEnergyTarget(m)
+    m = add_constraints_demandResponse(m)
 
     return m
 end

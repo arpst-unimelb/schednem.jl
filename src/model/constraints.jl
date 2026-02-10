@@ -14,16 +14,18 @@ function add_constraint_powerBalance(m, sys)
     # These constraints are added as constraints (not bounds)
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
 
-    # Balance constraints
+    # Balance constraints (add init=zero(1) to the sums to avoid errors when there are no units of a certain type in a region)
     @constraint(m, # For each region and time step
         powerBalance[r=1:Nregions, t=1:N],
             sum(m[:p_gen][g,t] for g in sys.region_gen_idxs[r]) +
-            sum(m[:p_genstor_discharge][gs,t] for gs in sys.region_genstor_idxs[r]) +
-            sum((m[:p_interface_forward][l,t] - m[:p_interface_backward][l,t]) * m[:connection_matrix][l,r] for l in 1:Ninterfaces) +
-            sum(m[:p_stor_discharge][s,t] for s in sys.region_stor_idxs[r]) ==
+            sum(m[:p_genstor_discharge][gs,t] for gs in sys.region_genstor_idxs[r]; init = zero(1)) +
+            sum(m[:p_stor_discharge][s,t] for s in sys.region_stor_idxs[r]; init = zero(1)) +
+            sum(m[:p_borrow_drs][drs,t] for drs in sys.region_dr_idxs[r]; init = zero(1)) +
+            sum((m[:p_interface_forward][l,t] - m[:p_interface_backward][l,t]) * m[:connection_matrix][l,r] for l in 1:Ninterfaces) ==
             m[:dem][r,t] - m[:load_shedding][r,t] +
-            sum(m[:p_stor_charge][s,t] for s in sys.region_stor_idxs[r]) +
-            sum(m[:p_genstor_charge][gs,t] for gs in sys.region_genstor_idxs[r])
+            sum(m[:p_payback_drs][drs,t] for drs in sys.region_dr_idxs[r]; init = zero(1)) +
+            sum(m[:p_stor_charge][s,t] for s in sys.region_stor_idxs[r]; init = zero(1)) +
+            sum(m[:p_genstor_charge][gs,t] for gs in sys.region_genstor_idxs[r]; init = zero(1))
     )
     return m
 end
@@ -37,6 +39,7 @@ function add_constraint_techLimits(m)
     Ninterfaces = m[:Ninterfaces]
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
+    Ndrs = m[:Ndrs]
 
     # These constraints are added as constraints (not bounds)
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
@@ -44,15 +47,25 @@ function add_constraint_techLimits(m)
     # Generator limits
     @constraint(m, genLimits[g=1:Ngens, t=1:N], m[:p_gen][g,t] <= m[:gen_cap][g,t])
 
-    # Storage limits
-    @constraint(m, storChargeLimits[s=1:Nstors, t=1:N], m[:p_stor_charge][s,t] <= m[:stor_charge_cap][s,t])
-    @constraint(m, storDischargeLimits[s=1:Nstors, t=1:N], m[:p_stor_discharge][s,t] <= m[:stor_discharge_cap][s,t])
-    @constraint(m, storEnergyLimitsUp[s=1:Nstors, t=1:N], m[:e_stor][s,t] <= m[:stor_energy_cap][s,t])
+    if Nstors > 0
+        # Storage limits
+        @constraint(m, storChargeLimits[s=1:Nstors, t=1:N], m[:p_stor_charge][s,t] <= m[:stor_charge_cap][s,t])
+        @constraint(m, storDischargeLimits[s=1:Nstors, t=1:N], m[:p_stor_discharge][s,t] <= m[:stor_discharge_cap][s,t])
+        @constraint(m, storEnergyLimitsUp[s=1:Nstors, t=1:N], m[:e_stor][s,t] <= m[:stor_energy_cap][s,t])
+    end
 
-    # Generator-Storage limits
-    @constraint(m, genstorChargeLimits[gs=1:Ngenstors, t=1:N], m[:p_genstor_charge][gs,t] <= m[:genstor_charge_cap][gs,t])
-    @constraint(m, genstorDischargeLimits[gs=1:Ngenstors, t=1:N], m[:p_genstor_discharge][gs,t] <= m[:genstor_discharge_cap][gs,t])
-    @constraint(m, genstorEnergyLimitsUp[gs=1:Ngenstors, t=1:N], m[:e_genstor][gs,t] <= m[:genstor_energy_cap][gs,t])
+    if Ngenstors > 0
+        # Generator-Storage limits
+        @constraint(m, genstorChargeLimits[gs=1:Ngenstors, t=1:N], m[:p_genstor_charge][gs,t] <= m[:genstor_charge_cap][gs,t])
+        @constraint(m, genstorDischargeLimits[gs=1:Ngenstors, t=1:N], m[:p_genstor_discharge][gs,t] <= m[:genstor_discharge_cap][gs,t])
+        @constraint(m, genstorEnergyLimitsUp[gs=1:Ngenstors, t=1:N], m[:e_genstor][gs,t] <= m[:genstor_energy_cap][gs,t])
+    end
+
+    if Ndrs > 0
+        # Demand response limits
+        @constraint(m, drsBorrowLimits[drs=1:Ndrs, t=1:N], m[:p_borrow_drs][drs,t] <= m[:drs_borrow_cap][drs,t])
+        @constraint(m, drsPaybackLimits[drs=1:Ndrs, t=1:N], m[:p_payback_drs][drs,t] <= m[:drs_payback_cap][drs,t])
+    end
 
     # Interface limits
     @constraint(m, interfacesLimitsForward[l=1:Ninterfaces, t=1:N], m[:p_interface_forward][l,t] <= m[:interface_limit_forward][l,t])
@@ -72,26 +85,59 @@ function add_constraints_storageConservation(m)
 
     # These constraints are added as constraints (not bounds)
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
-
-    # Storage conservation constraints
-    @constraint(m, storConservationStart[s=1:Nstors],
-        m[:e_stor][s,1] == m[:stor_initial_soc][s] * m[:stor_carryover_eff][s,1] + m[:p_stor_charge][s,1] * m[:stor_charge_eff][s,1] -
-         m[:p_stor_discharge][s,1] * m[:stor_discharge_eff_inverse][s,1]
-    )
-    @constraint(m, storConservation[s=1:Nstors, t=2:N],
-        m[:e_stor][s,t] == m[:e_stor][s,t-1] * m[:stor_carryover_eff][s,t] + m[:p_stor_charge][s,t] * m[:stor_charge_eff][s,t] -
-         m[:p_stor_discharge][s,t] * m[:stor_discharge_eff_inverse][s,t]
-    )
+    if Nstors > 0
+        # Storage conservation constraints
+        @constraint(m, storConservationStart[s=1:Nstors],
+            m[:e_stor][s,1] == m[:stor_initial_soc][s] * m[:stor_carryover_eff][s,1] + m[:p_stor_charge][s,1] * m[:stor_charge_eff][s,1] -
+             m[:p_stor_discharge][s,1] * m[:stor_discharge_eff_inverse][s,1]
+        )
+        @constraint(m, storConservation[s=1:Nstors, t=2:N],
+            m[:e_stor][s,t] == m[:e_stor][s,t-1] * m[:stor_carryover_eff][s,t] + m[:p_stor_charge][s,t] * m[:stor_charge_eff][s,t] -
+             m[:p_stor_discharge][s,t] * m[:stor_discharge_eff_inverse][s,t]
+        )
+    end
     
-    # Generator-Storage conservation constraints (use inequality here to allow for spillages!)
-    @constraint(m, genstorConservationStart[gs=1:Ngenstors],
-        m[:e_genstor][gs,1] <= m[:genstor_initial_soc][gs] * m[:genstor_carryover_eff][gs,1] + m[:p_genstor_charge][gs,1] * m[:genstor_charge_eff][gs,1] -
-         m[:p_genstor_discharge][gs,1] * m[:genstor_discharge_eff_inverse][gs,1] + m[:genstor_inflow][gs,1]
-    )
-    @constraint(m, genstorConservation[gs=1:Ngenstors, t=2:N],
-        m[:e_genstor][gs,t] <= m[:e_genstor][gs,t-1] * m[:genstor_carryover_eff][gs,t] + m[:p_genstor_charge][gs,t] * m[:genstor_charge_eff][gs,t] -
-         m[:p_genstor_discharge][gs,t] * m[:genstor_discharge_eff_inverse][gs,t] + m[:genstor_inflow][gs,t]
-    )
+    if Ngenstors > 0
+        # Generator-Storage conservation constraints (use inequality here to allow for spillages!)
+        @constraint(m, genstorConservationStart[gs=1:Ngenstors],
+            m[:e_genstor][gs,1] <= m[:genstor_initial_soc][gs] * m[:genstor_carryover_eff][gs,1] + m[:p_genstor_charge][gs,1] * m[:genstor_charge_eff][gs,1] -
+            m[:p_genstor_discharge][gs,1] * m[:genstor_discharge_eff_inverse][gs,1] + m[:genstor_inflow][gs,1]
+        )
+        @constraint(m, genstorConservation[gs=1:Ngenstors, t=2:N],
+            m[:e_genstor][gs,t] <= m[:e_genstor][gs,t-1] * m[:genstor_carryover_eff][gs,t] + m[:p_genstor_charge][gs,t] * m[:genstor_charge_eff][gs,t] -
+            m[:p_genstor_discharge][gs,t] * m[:genstor_discharge_eff_inverse][gs,t] + m[:genstor_inflow][gs,t]
+        )
+    end
+
+    return m
+end
+
+#%% ========================================================================================================================
+"""
+
+"""
+function add_constraints_demandResponse(m)
+
+    # Extract system parameters
+    N = m[:N]
+    Ndrs = m[:Ndrs]
+
+    # These constraints are added as constraints (not bounds)
+    
+    if Ndrs == 0
+        return m # If there are no demand response units, just return the model without adding any constraints
+    end
+
+    @warn "Demand response constraints not fully implemented yet - only conservation constraints are added, need to add limits and costs"
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+
+    # Demand response conservation constraints
+    #@constraint(m, drsConservationStart[drs=1:Ndrs],
+    #    m[:drs_energy][drs,1] == m[:p_borrow_drs][drs,1] - m[:p_payback_drs][drs,1]
+    #)
+    #@constraint(m, drsConservation[drs=1:Ndrs, t=2:N],
+    #    m[:drs_energy][drs,t] == m[:drs_energy][drs,t-1] + m[:p_borrow_drs][drs,t] - m[:p_payback_drs][drs,t]
+    #)
 
     return m
 end
