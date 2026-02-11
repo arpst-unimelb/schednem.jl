@@ -43,9 +43,14 @@ function add_variables(model)
     # And define all the parameters that will be updated (so the model doesn't need to be rebuilt)
     @variables(model, begin
         dem[1:Nregions, 1:N] in Parameter(0.0)
-
         gen_cap[1:Ngens, 1:N] in Parameter(0.0)
-        if Nstors > 0
+        interface_limit_forward[1:Ninterfaces, 1:N] in Parameter(0.0)
+        interface_limit_backward[1:Ninterfaces, 1:N] in Parameter(0.0)
+    end)
+
+    if Nstors > 0
+        @variables(model, begin
+
             stor_charge_cap[1:Nstors, 1:N] in Parameter(0.0)
             stor_discharge_cap[1:Nstors, 1:N] in Parameter(0.0)
             stor_energy_cap[1:Nstors, 1:N] in Parameter(0.0)
@@ -53,8 +58,11 @@ function add_variables(model)
             stor_carryover_eff[1:Nstors, 1:N] in Parameter(1.0)
             stor_charge_eff[1:Nstors, 1:N] in Parameter(1.0)
             stor_discharge_eff_inverse[1:Nstors, 1:N] in Parameter(1.0)
-        end
-        if Ngenstors > 0
+        end)
+    end
+
+    if Ngenstors > 0
+        @variables(model, begin
             genstor_charge_cap[1:Ngenstors, 1:N] in Parameter(0.0)
             genstor_discharge_cap[1:Ngenstors, 1:N] in Parameter(0.0)
             genstor_energy_cap[1:Ngenstors, 1:N] in Parameter(0.0)
@@ -64,16 +72,16 @@ function add_variables(model)
             genstor_charge_eff[1:Ngenstors, 1:N] in Parameter(1.0)
             genstor_discharge_eff_inverse[1:Ngenstors, 1:N] in Parameter(1.0)
             genstor_energy_target[1:Ngenstors] in Parameter(0.0)
-        end
+        end)
+    end
 
-        if Ndrs > 0
+    if Ndrs > 0
+        @variables(model, begin
             drs_borrow_cap[1:Ndrs, 1:N] in Parameter(0.0)
             drs_payback_cap[1:Ndrs, 1:N] in Parameter(0.0)
-        end
+        end)
+    end   
 
-        interface_limit_forward[1:Ninterfaces, 1:N] in Parameter(0.0)
-        interface_limit_backward[1:Ninterfaces, 1:N] in Parameter(0.0)
-    end)
 
     return model
 end
