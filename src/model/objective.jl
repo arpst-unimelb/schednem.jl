@@ -7,8 +7,8 @@ function add_objective(m, sys)
     Ngens = m[:Ngens]
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
+    Ndrs = m[:Ndrs]
     Ninterfaces = m[:Ninterfaces]
-
 
     # Extract the generator costs from the system attributes (else zero)
     gen_ids = parse.(Int, reduce(hcat, split.(sys.generators.names, "_"))[1,:])
