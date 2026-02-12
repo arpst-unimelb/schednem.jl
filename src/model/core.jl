@@ -11,11 +11,19 @@ include("objective.jl")
 # Optional arguments:
 - `include_DSP::Bool=true`: Whether to include demand response in the model. If false, demand response variables and constraints will not be added to the model, and the number of demand response units will be set to 0.  
 
+
+
+# DSP parameters (only relevant if `include_DSP=true`):
+    - `"max_energy_time_window" => 24 # The time window (in hours) over which the maximum energy borrow limits are applied. For example, if set to 24, the total energy borrowed over any 24 hour period cannot exceed the limit defined by `max_energy_per_window_per_capacity`.
+    - `"max_energy_per_window_per_capacity" => 4 # The maximum energy that can be borrowed over the specified time window, expressed as a multiple of the unit's capacity.
+    - `"limits_on_price_bands" => [0] # Select which price bands should be included in the max energy borrow limits. Empty for no limits, or [0] for reliability price band only. 
+
+
 """
 function build_operation_model(sys; 
     optimisation_window::Int=24, move_forward::Int=24, 
     input_folder::String="", optimiser=HiGHS.Optimizer(),
-    include_DSP::Bool=true
+    include_DSP::Bool=true, DSP_params::Dict=Dict("max_energy_time_window" => 24, "max_energy_per_window_per_capacity" => 4, "limits_on_price_bands" => [0])
     )
 
     # First check that the optimisation window is larger than the step size
