@@ -4,7 +4,19 @@ include("variables.jl")
 include("objective.jl")
 
 #%% =======================================================================================================================
-function build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, input_folder::String="", optimiser=HiGHS.Optimizer())
+"""
+    build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, input_folder::String="", optimiser=HiGHS.Optimizer(), include_DSP::Bool=true)
+
+
+# Optional arguments:
+- `include_DSP::Bool=true`: Whether to include demand response in the model. If false, demand response variables and constraints will not be added to the model, and the number of demand response units will be set to 0.  
+
+"""
+function build_operation_model(sys; 
+    optimisation_window::Int=24, move_forward::Int=24, 
+    input_folder::String="", optimiser=HiGHS.Optimizer(),
+    include_DSP::Bool=true
+    )
 
     # First check that the optimisation window is larger than the step size
     if optimisation_window < move_forward
@@ -19,7 +31,7 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     Ninterfaces = length(sys.interfaces.regions_from);
 
     connection_matrix = zeros(Int, Ninterfaces, Nregions) 
-    for i in 1:length(sys.interfaces.regions_from)
+    for i in 1:Ninterfaces
         connection_matrix[i, sys.interfaces.regions_from[i]] = -1
         connection_matrix[i, sys.interfaces.regions_to[i]] = 1
     end    
@@ -36,7 +48,6 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     m[:Ngens] = length(sys.generators.names)  # Save the number of generators as a parameter
     m[:Nstors] = length(sys.storages.names)  # Save the number of storages as a parameter
     m[:Ngenstors] = length(sys.generatorstorages.names)  # Save the number of generator-storages as a parameter
-    m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
     m[:Ninterfaces] = Ninterfaces  # Save the number of interfaces as a parameter
     m[:connection_matrix] = connection_matrix  # Save the connection matrix as a parameter
 
@@ -51,7 +62,13 @@ function build_operation_model(sys; optimisation_window::Int=24, move_forward::I
     m = add_constraint_techLimits(m)
     m = add_constraints_storageConservation(m)
     m = add_constraints_genstorEnergyTarget(m)
-    m = add_constraints_demandResponse(m)
+
+    if include_DSP
+        m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
+        m = add_constraints_demandResponse(m)
+    else
+        m[:Ndrs] = 0  # Set the number of demand response units to 0 if DSP is not included
+    end
 
     return m
 end

@@ -63,6 +63,7 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
     if Ndrs > 0
         set_parameter_value.(m[:drs_borrow_cap][:,t], sys.demandresponses.borrow_capacity[:, idxs])
         set_parameter_value.(m[:drs_payback_cap][:,t], sys.demandresponses.payback_capacity[:, idxs])
+        set_parameter_value.(m[:drs_energy_interest][:,t], sys.demandresponses.borrowed_energy_interest[:, idxs])
     end
 
     return m

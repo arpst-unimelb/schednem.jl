@@ -20,10 +20,10 @@ function add_constraint_powerBalance(m, sys)
             sum(m[:p_gen][g,t] for g in sys.region_gen_idxs[r]) +
             sum(m[:p_genstor_discharge][gs,t] for gs in sys.region_genstor_idxs[r]; init = zero(1)) +
             sum(m[:p_stor_discharge][s,t] for s in sys.region_stor_idxs[r]; init = zero(1)) +
-            sum(m[:p_borrow_drs][drs,t] for drs in sys.region_dr_idxs[r]; init = zero(1)) +
+            sum(m[:p_borrow_drs][drs,t] for drs in sys.region_dr_idxs[r] if (m[:Ndrs] > 0); init = zero(1)) +
             sum((m[:p_interface_forward][l,t] - m[:p_interface_backward][l,t]) * m[:connection_matrix][l,r] for l in 1:Ninterfaces) ==
             m[:dem][r,t] - m[:load_shedding][r,t] +
-            sum(m[:p_payback_drs][drs,t] for drs in sys.region_dr_idxs[r]; init = zero(1)) +
+            sum(m[:p_payback_drs][drs,t] for drs in sys.region_dr_idxs[r] if (m[:Ndrs] > 0); init = zero(1)) +
             sum(m[:p_stor_charge][s,t] for s in sys.region_stor_idxs[r]; init = zero(1)) +
             sum(m[:p_genstor_charge][gs,t] for gs in sys.region_genstor_idxs[r]; init = zero(1))
     )
@@ -39,7 +39,6 @@ function add_constraint_techLimits(m)
     Ninterfaces = m[:Ninterfaces]
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
-    Ndrs = m[:Ndrs]
 
     # These constraints are added as constraints (not bounds)
     MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
@@ -59,12 +58,6 @@ function add_constraint_techLimits(m)
         @constraint(m, genstorChargeLimits[gs=1:Ngenstors, t=1:N], m[:p_genstor_charge][gs,t] <= m[:genstor_charge_cap][gs,t])
         @constraint(m, genstorDischargeLimits[gs=1:Ngenstors, t=1:N], m[:p_genstor_discharge][gs,t] <= m[:genstor_discharge_cap][gs,t])
         @constraint(m, genstorEnergyLimitsUp[gs=1:Ngenstors, t=1:N], m[:e_genstor][gs,t] <= m[:genstor_energy_cap][gs,t])
-    end
-
-    if Ndrs > 0
-        # Demand response limits
-        @constraint(m, drsBorrowLimits[drs=1:Ndrs, t=1:N], m[:p_borrow_drs][drs,t] <= m[:drs_borrow_cap][drs,t])
-        @constraint(m, drsPaybackLimits[drs=1:Ndrs, t=1:N], m[:p_payback_drs][drs,t] <= m[:drs_payback_cap][drs,t])
     end
 
     # Interface limits
@@ -114,6 +107,16 @@ end
 
 #%% ========================================================================================================================
 """
+    add_constraints_demandResponse(m)
+
+Adds basic demand response constraints to the model, including:
+- Borrow and payback limits
+- Conservation constraints:
+    1. For each time step: There needs to be at least as much demand borrowed up, as is paid back up to that time step (i.e. no payback before borrowing)
+    2. Overall: All the borrowed energy needs to be paid back (accounting for time-varying interest)
+# Assumptions: 
+1. No payback before borrowing
+2. 
 
 """
 function add_constraints_demandResponse(m)
@@ -128,16 +131,23 @@ function add_constraints_demandResponse(m)
         return m # If there are no demand response units, just return the model without adding any constraints
     end
 
-    @warn "Demand response constraints not fully implemented yet - only conservation constraints are added, need to add limits and costs"
-    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+    @info "Demand response constraints currently only include payback interest (i.e. how much more/less energy needs to be paid back). Time constraints not considered."
+
+    # Demand response limits
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
+    @constraint(m, drsBorrowLimits[drs=1:Ndrs, t=1:N], m[:p_borrow_drs][drs,t] <= m[:drs_borrow_cap][drs,t])
+    @constraint(m, drsPaybackLimits[drs=1:Ndrs, t=1:N], m[:p_payback_drs][drs,t] <= m[:drs_payback_cap][drs,t])
 
     # Demand response conservation constraints
-    #@constraint(m, drsConservationStart[drs=1:Ndrs],
-    #    m[:drs_energy][drs,1] == m[:p_borrow_drs][drs,1] - m[:p_payback_drs][drs,1]
-    #)
-    #@constraint(m, drsConservation[drs=1:Ndrs, t=2:N],
-    #    m[:drs_energy][drs,t] == m[:drs_energy][drs,t-1] + m[:p_borrow_drs][drs,t] - m[:p_payback_drs][drs,t]
-    #)
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+    # For each time step: There needs to be at least as much demand borrowed up, as is paid back up to that time step (i.e. no payback before borrowing)
+    @constraint(m, drsConservationFirstReduce[drs=1:Ndrs, T=1:N-1],
+        sum(m[:p_borrow_drs][drs,t] * (m[:drs_energy_interest][drs,t] + 1.0) for t=1:T) >= sum(m[:p_payback_drs][drs,t] for t=1:T)
+    )
+    # Overall: All the borrowed energy needs to be paid back (accounting for time-varying interest)
+    @constraint(m, drsConservationWholeTime[drs=1:Ndrs],
+        sum(m[:p_borrow_drs][drs,t] * (m[:drs_energy_interest][drs,t] + 1.0) for t=1:N) <= sum(m[:p_payback_drs][drs,t] for t=1:N)
+    )
 
     return m
 end
