@@ -6,6 +6,7 @@ function add_variables(model)
     Ngens = model[:Ngens]
     Nstors = model[:Nstors]
     Ngenstors = model[:Ngenstors]
+    Ndrs = model[:Ndrs]
     Ninterfaces = model[:Ninterfaces]
     N = model[:N]
 
