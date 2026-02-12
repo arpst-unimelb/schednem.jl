@@ -152,6 +152,49 @@ function add_constraints_demandResponse(m)
     return m
 end
 
+"""
+    add_constraints_demandResponse_maxEnergy(m; max_energy_per_24h=24)
+
+"""
+function add_constraints_demandResponse_maxEnergy(m)
+
+    Ndrs = m[:Ndrs]
+    N = m[:N]
+
+    if (Ndrs > 0) && !isempty(m[:drs_limitsOnPriceBands])
+
+        maxEnergy = m[:drs_maxEnergyPerWindowFactor]
+        
+        window = m[:drs_borrowEnergyTimeWindow]
+        if window > N
+            window = N
+        end
+
+        relevant_price_bands = m[:drs_limitsOnPriceBands]
+        if 0 in relevant_price_bands
+            relevant_price_bands = vcat(relevant_price_bands, m[:VoLL_min])
+        end
+
+        # Find the 
+        MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+        for i in 1:Ndrs
+            # Get the price for this demand response unit
+            price = coefficient(m[:operating_cost_drs], m[:p_borrow_drs][i,1])
+            if !iszero(price) && (price in relevant_price_bands)
+                @info "Adding max energy constraints for demand response unit $i with price band $price."
+                for T in window:window:N
+                    @constraint(m, drsMaxEnergy[drs=i], sum(m[:p_borrow_drs][i,t] for t=T-window+1:T) <= maxEnergy * m[:drs_borrow_cap][i,1])
+                end
+            end
+        end
+    else
+        @warn "No demand response units in the system or no price bands specified, so max energy constraints not added."
+    end
+
+    return m
+end
+
+
 #%% ========================================================================================================================
 """
     add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level)

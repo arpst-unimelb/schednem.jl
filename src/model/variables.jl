@@ -31,7 +31,6 @@ function add_variables(model)
     if Ndrs > 0
         @variable(model, p_borrow_drs[1:Ndrs, 1:N] >= 0)
         @variable(model, p_payback_drs[1:Ndrs, 1:N] >= 0)
-        @variable(model, drs_energy[1:Ndrs, 1:N] >= 0)
     end
 
     @variable(model, p_interface_forward[1:Ninterfaces, 1:N] >= 0)
@@ -80,7 +79,7 @@ function add_variables(model)
         @variables(model, begin
             drs_borrow_cap[1:Ndrs, 1:N] in Parameter(0.0)
             drs_payback_cap[1:Ndrs, 1:N] in Parameter(0.0)
-            drs_energy_interest[1:Ndrs, 1:N] in Parameter(0.0) # Note that interest is the growth (positive) or shrinkage (negative) of the borrowed energy, i.e. the payback needs to be more than the borrowed energy if interest is positive, and can be less if interest is negative.
+            drs_energy_interest[1:Ndrs, 1:N] in Parameter(-1.0) # Note that interest is the growth (positive) or shrinkage (negative) of the borrowed energy, i.e. the payback needs to be more than the borrowed energy if interest is positive, and can be less if interest is negative.
         end)
     end   
 

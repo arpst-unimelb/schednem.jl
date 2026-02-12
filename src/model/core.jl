@@ -81,8 +81,7 @@ function build_operation_model(sys;
     m = add_constraints_genstorEnergyTarget(m)
     if include_DSP
         m = add_constraints_demandResponse(m)
-    else
-        m[:Ndrs] = 0  # Set the number of demand response units to 0 if DSP is not included
+        m = add_constraints_demandResponse_maxEnergy(m)
     end
 
     return m
