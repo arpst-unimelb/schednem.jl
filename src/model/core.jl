@@ -51,6 +51,15 @@ function build_operation_model(sys;
     m[:Ninterfaces] = Ninterfaces  # Save the number of interfaces as a parameter
     m[:connection_matrix] = connection_matrix  # Save the connection matrix as a parameter
 
+    if include_DSP
+        m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
+        m[:drs_maxEnergyPerWindowFactor] = DSP_params["max_energy_per_window_per_capacity"]
+        m[:drs_borrowEnergyTimeWindow] = DSP_params["max_energy_time_window"]
+        m[:drs_limitsOnPriceBands] = DSP_params["limits_on_price_bands"]
+    else
+        m[:Ndrs] = 0  # Set the number of demand response units to 0 if DSP is not included
+    end
+
     # Add decision variables
     m = add_variables(m)
 
@@ -62,9 +71,7 @@ function build_operation_model(sys;
     m = add_constraint_techLimits(m)
     m = add_constraints_storageConservation(m)
     m = add_constraints_genstorEnergyTarget(m)
-
     if include_DSP
-        m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
         m = add_constraints_demandResponse(m)
     else
         m[:Ndrs] = 0  # Set the number of demand response units to 0 if DSP is not included
