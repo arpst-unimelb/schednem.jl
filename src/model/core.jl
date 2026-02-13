@@ -23,7 +23,28 @@ include("objective.jl")
 function build_operation_model(sys; 
     optimisation_window::Int=24, move_forward::Int=24, 
     input_folder::String="", optimiser=HiGHS.Optimizer(),
-    include_DSP::Bool=true, DSP_params::Dict=Dict("max_energy_time_window" => 24, "max_energy_per_window_per_capacity" => 4, "limits_on_price_bands" => [0])
+    DER_params::Dict=Dict(
+            "DSP_flexibility"=>true, 
+                "DSP_payback_window"=>24, 
+                "DSP_interest"=>-1.0,
+                "DSP_payback_before_borrowing"=>false, 
+                "DSP_limit_energy_per_window"=>Dict(
+                    "enabled" => true,
+                    "max_energy_time_window" => 24, 
+                    "max_energy_per_window_per_capacity" => 4, 
+                    "limits_on_price_bands" => [0] 
+                ),
+            "EV_charge_flexibility"=>false, 
+                "EV_payback_window"=>8,
+                "EV_interest"=>0.0, 
+                "EV_payback_before_borrowing"=>false, 
+                "EV_limit_energy_per_window"=>Dict(
+                    "enabled" => false,
+                    "max_energy_time_window" => 24, 
+                    "max_energy_per_window_per_capacity" => 24
+                ),
+            "VPP_flexibility"=>true
+        )
     )
 
     # First check that the optimisation window is larger than the step size
@@ -42,7 +63,7 @@ function build_operation_model(sys;
     for i in 1:Ninterfaces
         connection_matrix[i, sys.interfaces.regions_from[i]] = -1
         connection_matrix[i, sys.interfaces.regions_to[i]] = 1
-    end    
+    end
 
     # Set up the optimization model
     m = Model(() -> POI.Optimizer(optimiser));
@@ -59,11 +80,10 @@ function build_operation_model(sys;
     m[:Ninterfaces] = Ninterfaces  # Save the number of interfaces as a parameter
     m[:connection_matrix] = connection_matrix  # Save the connection matrix as a parameter
 
-    if include_DSP
+    if DER_params["DSP_flexibility"] || DER_params["EV_charge_flexibility"]
         m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
-        m[:drs_maxEnergyPerWindowFactor] = DSP_params["max_energy_per_window_per_capacity"]
-        m[:drs_borrowEnergyTimeWindow] = DSP_params["max_energy_time_window"]
-        m[:drs_limitsOnPriceBands] = DSP_params["limits_on_price_bands"]
+        m[:drs_idxs_DSP] = findall(sys.demandresponses.categories .== "DSP")
+        m[:drs_idxs_EV] = findall(sys.demandresponses.categories .== "EV")
     else
         m[:Ndrs] = 0  # Set the number of demand response units to 0 if DSP is not included
     end
@@ -79,9 +99,15 @@ function build_operation_model(sys;
     m = add_constraint_techLimits(m)
     m = add_constraints_storageConservation(m)
     m = add_constraints_genstorEnergyTarget(m)
-    if include_DSP
-        m = add_constraints_demandResponse(m)
-        m = add_constraints_demandResponse_maxEnergy(m)
+
+    # Add DER specific constraints
+    if DER_params["DSP_flexibility"] || DER_params["EV_charge_flexibility"]
+        m = add_constraints_demandResponse(m, DER_params)
+        m = add_constraints_demandResponse_paybackTime(m, DER_params)
+        m = add_constraints_demandResponse_maxEnergy(m, DER_params)
+    end
+    if !DER_params["VPP_flexibility"]
+        m = add_constraints_disableVPP(m, sys)
     end
 
     return m
@@ -143,8 +169,12 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
             initial_soc_stor = stor_energy_initial
             initial_soc_genstor = genstor_energy_initial
         else
-            initial_soc_stor = value.(m[:e_stor])[:,move_forward_step]
-            initial_soc_genstor = value.(m[:e_genstor])[:,move_forward_step]
+            if Nstors > 0
+                initial_soc_stor = value.(m[:e_stor])[:,move_forward_step]
+            end
+            if Ngenstors > 0
+                initial_soc_genstor = value.(m[:e_genstor])[:,move_forward_step]
+            end
         end
 
         # Update model parameters

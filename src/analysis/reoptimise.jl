@@ -28,6 +28,7 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
     # TODO: Filter for events here first to avoid calculating all events
     # TODO: Add DER operation here as well
     # TODO: Find a way to not rebuild the model for each event?
+    # TODO: Parallelise this loop if possible
     for event in eachrow(df_expectation)
 
         # For determining the horizon: Need to check when next event was happening in this sample
