@@ -80,7 +80,7 @@ function build_operation_model(sys;
     m[:Ninterfaces] = Ninterfaces  # Save the number of interfaces as a parameter
     m[:connection_matrix] = connection_matrix  # Save the connection matrix as a parameter
 
-    if DER_params["DSP_flexibility"] || DER_params["EV_charge_flexibility"]
+    if DER_parameters["DSP_flexibility"] || DER_parameters["EV_charge_flexibility"]
         m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
         m[:drs_idxs_DSP] = findall(sys.demandresponses.categories .== "DSP")
         m[:drs_idxs_EV] = findall(sys.demandresponses.categories .== "EV")
@@ -101,12 +101,12 @@ function build_operation_model(sys;
     m = add_constraints_genstorEnergyTarget(m)
 
     # Add DER specific constraints
-    if DER_params["DSP_flexibility"] || DER_params["EV_charge_flexibility"]
-        m = add_constraints_demandResponse(m, DER_params)
-        m = add_constraints_demandResponse_paybackTime(m, DER_params)
-        m = add_constraints_demandResponse_maxEnergy(m, DER_params)
+    if DER_parameters["DSP_flexibility"] || DER_parameters["EV_charge_flexibility"]
+        m = add_constraints_demandResponse(m, DER_parameters)
+        m = add_constraints_demandResponse_paybackTime(m, DER_parameters)
+        m = add_constraints_demandResponse_maxEnergy(m, DER_parameters)
     end
-    if !DER_params["VPP_flexibility"]
+    if !DER_parameters["VPP_flexibility"]
         m = add_constraints_disableVPP(m, sys)
     end
 
