@@ -16,7 +16,7 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
     DER_parameters=get_DER_parameters())
 
     # Add an ID column for easier reference
-    df_expectation.id = 1:nrow(df_expectation)
+    df_expectation.id = 1:DataFrames.nrow(df_expectation)
 
     # Initialise the results
     sum_reoptimised = df_expectation.sum
