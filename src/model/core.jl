@@ -23,7 +23,7 @@ include("objective.jl")
 function build_operation_model(sys; 
     optimisation_window::Int=24, move_forward::Int=24, 
     input_folder::String="", optimiser=HiGHS.Optimizer(),
-    DER_params::Dict=Dict(
+    DER_parameters::Dict=Dict(
             "DSP_flexibility"=>true, 
                 "DSP_payback_window"=>24, 
                 "DSP_interest"=>-1.0,
@@ -113,7 +113,7 @@ function build_operation_model(sys;
     return m
 end
 
-function run_operation_model(m, sys; output_folder_schedule::String="")
+function run_operation_model(m, sys; output_folder_schedule::String="", start_simulation::Int=1, end_simulation::Int=0)
 
     # Check if schedule files already exist
     if "case" in keys(sys.attrs) && output_folder_schedule != ""
@@ -129,20 +129,28 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
             genstor_discharging = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_discharging.csv"), DataFrames.DataFrame; header=false)
             genstor_energy = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_energy.csv"), DataFrames.DataFrame; header=false)
             genstor_energy_initial = CSV.read(joinpath(output_folder_schedule, case_name * "_genstor_energy_initial.csv"), DataFrames.DataFrame; header=false)
+            drs_borrowing = CSV.read(joinpath(output_folder_schedule, case_name * "_drs_borrowing.csv"), DataFrames.DataFrame; header=false)
+            drs_payback = CSV.read(joinpath(output_folder_schedule, case_name * "_drs_payback.csv"), DataFrames.DataFrame; header=false)
             return (stor_charging=Matrix(stor_charging),
                 stor_discharging=Matrix(stor_discharging),
                 stor_energy=Matrix(stor_energy),
                 genstor_charging=Matrix(genstor_charging),
                 genstor_discharging=Matrix(genstor_discharging),
-                genstor_energy=Matrix(genstor_energy)
+                genstor_energy=Matrix(genstor_energy),
+                drs_borrowing=Matrix(drs_borrowing),
+                drs_payback=Matrix(drs_payback)
             )
         end
     end
 
     # Initialise result parameters
     full_horizon, _ = get_params(sys)
-    Nstors = length(sys.storages.names);
-    Ngenstors = length(sys.generatorstorages.names);
+    if end_simulation > 0
+        full_horizon = min(full_horizon, end_simulation)
+    end
+    Nstors = m[:Nstors];
+    Ngenstors = m[:Ngenstors];
+    Ndrs = m[:Ndrs]
 
     stor_charging = zeros(Int, Nstors, full_horizon)
     stor_discharging = zeros(Int, Nstors, full_horizon)
@@ -152,12 +160,14 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
     genstor_discharging = zeros(Int, Ngenstors, full_horizon)
     genstor_energy = zeros(Int, Ngenstors, full_horizon)
     genstor_energy_initial = zeros(Int, Ngenstors)
+    drs_borrowing = zeros(Int, Ndrs, full_horizon)
+    drs_payback = zeros(Int, Ndrs, full_horizon)
 
     # TODO: Add updating initial energy here from sys.storages attributes when available in PRAS
 
     # Run the rolling horizon optimisation
     move_forward_step = m[:move_forward]
-    start_idxs = 1:move_forward_step:full_horizon
+    start_idxs = start_simulation:move_forward_step:full_horizon
     for start_idx in start_idxs
         if start_idx % (round(Int,full_horizon / 10)) == 0
             println("Optimisation progress: Time step ", start_idx, " of ", full_horizon)
@@ -200,6 +210,9 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
         genstor_discharging[:, start_idx:end_idx] = res_window.genstor_discharging[:, 1:time_steps]
         genstor_energy[:, start_idx:end_idx] = res_window.genstor_energy[:, 1:time_steps]
 
+        drs_borrowing[:, start_idx:end_idx] = res_window.drs_borrowing[:, 1:time_steps]
+        drs_payback[:, start_idx:end_idx] = res_window.drs_payback[:, 1:time_steps]
+
         # Check if storage and generator-storage is operating as expected
         if sum(stor_charging[:, start_idx:end_idx] .* stor_discharging[:, start_idx:end_idx] .> 0) > 0
             @warn "Some storages are charging and discharging at the same time between time steps $start_idx and $end_idx."
@@ -217,7 +230,9 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
         genstor_charging=genstor_charging,
         genstor_discharging=genstor_discharging,
         genstor_energy=genstor_energy,
-        genstor_energy_initial=genstor_energy_initial
+        genstor_energy_initial=genstor_energy_initial,
+        drs_borrowing=drs_borrowing,
+        drs_payback=drs_payback
     )
 
     if (output_folder_schedule != "") && isdir(output_folder_schedule)
@@ -233,6 +248,8 @@ function run_operation_model(m, sys; output_folder_schedule::String="")
             CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_discharging.csv"), Tables.table(res_schedule.genstor_discharging); writeheader=false)
             CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_energy.csv"), Tables.table(res_schedule.genstor_energy); writeheader=false)
             CSV.write(joinpath(output_folder_schedule, case_name * "_genstor_energy_initial.csv"), Tables.table(res_schedule.genstor_energy_initial'); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_drs_borrowing.csv"), Tables.table(res_schedule.drs_borrowing); writeheader=false)
+            CSV.write(joinpath(output_folder_schedule, case_name * "_drs_payback.csv"), Tables.table(res_schedule.drs_payback); writeheader=false)
         end
     end
 

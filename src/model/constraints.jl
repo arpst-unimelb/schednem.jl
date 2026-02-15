@@ -107,7 +107,7 @@ end
 
 #%% ========================================================================================================================
 """
-    add_constraints_demandResponse(m)
+    add_constraints_demandResponse(m, DER_params)
 
 Adds basic demand response constraints to the model, including:
 - Borrow and payback limits
@@ -171,7 +171,7 @@ function add_constraints_demandResponse_paybackTime(m, DER_params)
     N = m[:N]
 
     # First for DSP
-    if DER_params["DSP_flexibility"] && (DER_params["DSP_payback_window"] > 0) && (DER_params["DSP_payback_window"] < N)
+    if DER_params["DSP_flexibility"] && (DER_params["DSP_payback_window"] > 0) && (DER_params["DSP_payback_window"] < N) && (DER_params["DSP_interest"] > -1.0)
         drs_idxs_DSP = m[:drs_idxs_DSP]
         window = DER_params["DSP_payback_window"]
         @info "Adding demand response payback time constraints for DSP units with payback window of $(window) hours."
@@ -179,7 +179,7 @@ function add_constraints_demandResponse_paybackTime(m, DER_params)
         @constraint(m, drsPaybackTimeDSP[drs=drs_idxs_DSP, t=window:N], sum(m[:p_payback_drs][drs,tau] for tau=t-window+1:t) >= m[:p_borrow_drs][drs,t-window+1] * (1.0 + m[:drs_energy_interest][drs,t-window+1]))
     end
 
-    if DER_params["EV_charge_flexibility"] && (DER_params["EV_payback_window"] > 0) && (DER_params["EV_payback_window"] < N)
+    if DER_params["EV_charge_flexibility"] && (DER_params["EV_payback_window"] > 0) && (DER_params["EV_payback_window"] < N) && (DER_params["EV_interest"] > -1.0)
         drs_idxs_EV = m[:drs_idxs_EV]
         window = DER_params["EV_payback_window"]
         @info "Adding demand response payback time constraints for EV units with payback window of $(window) hours."
@@ -192,7 +192,7 @@ end
 
 
 """
-    add_constraints_demandResponse_maxEnergy(m)
+    add_constraints_demandResponse_maxEnergy(m, DER_params)
 
 
 - Limiting the energy that can be borrowed over a certain time window (e.g. 24 hours) to be no more than a certain factor of the total borrowing capacity in that window. 
