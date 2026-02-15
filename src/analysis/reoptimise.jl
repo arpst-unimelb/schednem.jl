@@ -12,7 +12,8 @@ Model to re-optimise USE events, to see if the USE changes if storage would be a
 function reoptimise_all_samples(df_expectation, sys, res, genAvSamples; 
     default_horizon::Int=24, min_time_after_event::Int=5, 
     optimiser=HiGHS.Optimizer(), input_folder::String="",
-    tolerance_storage_energy_fixed::Float64=1.0)
+    tolerance_storage_energy_fixed::Float64=1.0,
+    DER_parameters=get_DER_parameters())
 
     # Add an ID column for easier reference
     df_expectation.id = 1:nrow(df_expectation)
@@ -42,7 +43,7 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
         end
 
         # Create the model for the event
-        m_event = build_operation_model(sys; optimisation_window=horizon, move_forward=horizon, input_folder=input_folder, optimiser=optimiser)
+        m_event = build_operation_model(sys; optimisation_window=horizon, move_forward=horizon, input_folder=input_folder, optimiser=optimiser, DER_parameters=DER_parameters)
 
         # Update the model parameters to reflect the event conditions (e.g., generator outages, initial state of charge of storage)
         initial_soc_stor = res.stor_energy[:, event.start_index - 1] # Initial state of charge of storage at the start of the event

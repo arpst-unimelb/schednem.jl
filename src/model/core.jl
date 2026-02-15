@@ -1,4 +1,4 @@
-
+include("./DERparameters.jl")
 include("constraints.jl")
 include("variables.jl")
 include("objective.jl")
