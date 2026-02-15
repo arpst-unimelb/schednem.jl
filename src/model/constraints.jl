@@ -260,7 +260,7 @@ end
 
 #%% ========================================================================================================================
 """
-    add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level)
+    add_constraints_genstorEnergyTarget(m, index, storage_energy_level, genstor_energy_level)
 
 """
 function add_constraints_genstorEnergyTarget(m)
@@ -289,12 +289,19 @@ Removes the constraints that fix storage energy levels at a certain time step.
 """
 function remove_constraints_EnergyFixed(m)
 
-    # Remove the storage energy fixed constraints
-    if !isnothing(constraint_by_name(m, "storEnergyFixed"))
-        delete(m, :storEnergyFixed)
+    # Extract system parameters
+    Nstors = m[:Nstors]
+    Ngenstors = m[:Ngenstors]
+
+    # These constraints are added as bounds
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
+
+    if Nstors > 0
+        set_lower_bound.(m[:e_stor], 0.0)
+        set_lower_bound.(m[:e_stor][:,index], 0.0)
     end
-    if !isnothing(constraint_by_name(m, "genstorEnergyFixed"))
-        delete(m, :genstorEnergyFixed)
+    for gs in 1:Ngenstors
+        set_lower_bound.(m[:e_genstor][gs,:], 0.0)
     end
 
     return m
@@ -319,19 +326,22 @@ end
 """
 function add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level; tolerance=0.0)
 
-    m = remove_constraints_EnergyFixed(m) # Remove existing constraints if they exist
-
     # Extract system parameters
-    N = m[:N]
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
 
-    # These constraints are added as constraints (not bounds)
-    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+    # These constraints are added as bounds
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
 
     # Storage energy level fixed constraints
-    @constraint(m, storEnergyFixed[s=1:Nstors], m[:e_stor][s,index] >= storage_energy_level[s] - tolerance)
-    @constraint(m, genstorEnergyFixed[gs=1:Ngenstors], m[:e_genstor][gs,index] >= genstor_energy_level[gs] - tolerance)
+    if Nstors > 0
+        set_lower_bound.(m[:e_stor], 0.0) # First set all the lower bounds to zero to avoid errors when adding the constraints
+        set_lower_bound.(m[:e_stor][:,index], storage_energy_level[:] .- tolerance)
+    end
+    for gs in 1:Ngenstors
+        set_lower_bound.(m[:e_genstor][gs,:], 0.0) # First set all the lower bounds to zero to avoid errors when adding the constraints
+        set_lower_bound(m[:e_genstor][gs,index], genstor_energy_level[gs] - tolerance)
+    end
 
     return m
 end

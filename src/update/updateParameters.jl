@@ -1,25 +1,40 @@
-function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initial_soc_genstor=[])
+function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initial_soc_genstor=[]; end_index::Int=0)
 
     total_length, _ = get_params(sys)
 
     if total_length < start_index + m[:N] - 1
-        N = total_length - start_index + 1
-        @warn "Last optimisation window is shorter ($N) than optimisation_window ($(m[:N])). Remaining values are taken from previous window."
+        end_index = total_length
+        @warn "Last optimisation window is shorter ($N) than optimisation_window ($(m[:N]))."
+    end
+
+    # If end_index is not provided or is zero, use the full window length
+    if end_index > 0
+        if start_index > end_index
+            error("Error: start_index should be less than end_index when updating system parameters.")
+        end
+        # Define the time steps for which parameters will be updated
+        t = 1:(end_index - start_index + 1)
+        idxs = start_index .+ t .- 1
+        # Define the remaining time steps, where the parameters will be set to zero
+        remaining_t = (end_index - start_index + 2):(m[:N])
     else
-        N = m[:N]
+        t = 1:m[:N]
+        idxs = start_index .+ t .- 1
+        # Empty range for remaining time steps, as we are using the full window
+        remaining_t = 1:0
     end
 
     # Extract system parameters
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
     Ndrs = m[:Ndrs]
-
-    # Define the time steps for which parameters will be updated
-    t = 1:N
-    idxs = start_index .+ t .- 1
     
     # Update the load in all regions
     set_parameter_value.(m[:dem][:,t], sys.regions.load[:, idxs])
+    # If the end_index is less than the full window length, set the remaining load to zero to not have any additional unserved energy
+    if end_index < start_index + m[:N] - 1
+        set_parameter_value.(m[:dem][:,remaining_t], fill(0.0, size(m[:dem][:,remaining_t])))
+    end
 
     # Update generator capacities
     set_parameter_value.(m[:gen_cap][:,t], sys.generators.capacity[:, idxs])
@@ -41,6 +56,10 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
 
         # Update initial state of charge
         set_parameter_value.(m[:stor_initial_soc][:], initial_soc_stor[:])
+
+        # Set all the remaining times the charge/discharge capacity to zero
+        set_parameter_value.(m[:stor_charge_cap][:,remaining_t], fill(0.0, size(m[:stor_charge_cap][:,remaining_t])))
+        set_parameter_value.(m[:stor_discharge_cap][:,remaining_t], fill(0.0, size(m[:stor_discharge_cap][:,remaining_t])))
     end
 
     # Update generator-storage parameters
@@ -57,6 +76,10 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
 
         # Update initial state of charge
         set_parameter_value.(m[:genstor_initial_soc][:], initial_soc_genstor[:])
+
+        # Set all the remaining times the charge/discharge capacity to zero
+        set_parameter_value.(m[:genstor_charge_cap][:,remaining_t], fill(0.0, size(m[:genstor_charge_cap][:,remaining_t])))
+        set_parameter_value.(m[:genstor_discharge_cap][:,remaining_t], fill(0.0, size(m[:genstor_discharge_cap][:,remaining_t])))
     end
 
     # Update demand response parameters
@@ -64,6 +87,11 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
         set_parameter_value.(m[:drs_borrow_cap][:,t], sys.demandresponses.borrow_capacity[:, idxs])
         set_parameter_value.(m[:drs_payback_cap][:,t], sys.demandresponses.payback_capacity[:, idxs])
         set_parameter_value.(m[:drs_energy_interest][:,t], sys.demandresponses.borrowed_energy_interest[:, idxs])
+
+        # Set all the remaining times the demand response parameters to zero
+        set_parameter_value.(m[:drs_borrow_cap][:,remaining_t], fill(0.0, size(m[:drs_borrow_cap][:,remaining_t])))
+        set_parameter_value.(m[:drs_payback_cap][:,remaining_t], fill(0.0, size(m[:drs_payback_cap][:,remaining_t])))
+        set_parameter_value.(m[:drs_energy_interest][:,remaining_t], fill(-1.0, size(m[:drs_energy_interest][:,remaining_t])))
     end
 
     return m

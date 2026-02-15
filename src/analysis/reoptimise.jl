@@ -13,7 +13,7 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
     default_horizon::Int=24, min_time_after_event::Int=5, 
     optimiser=HiGHS.Optimizer(), input_folder::String="",
     tolerance_storage_energy_fixed::Float64=1.0,
-    DER_parameters=get_DER_parameters())
+    DER_parameters=get_DER_parameters(), max_horizon::Int=48)
 
     # Add an ID column for easier reference
     df_expectation.id = 1:DataFrames.nrow(df_expectation)
@@ -30,6 +30,12 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
     # TODO: Add DER operation here as well
     # TODO: Find a way to not rebuild the model for each event?
     # TODO: Parallelise this loop if possible
+
+    # Build the model once (with the full window length) and then update the parameters for each event
+    m_event = build_operation_model(sys; optimisation_window=max_horizon, move_forward=max_horizon, input_folder=input_folder, optimiser=optimiser, DER_parameters=DER_parameters)
+
+
+
     for event in eachrow(df_expectation)
 
         # For determining the horizon: Need to check when next event was happening in this sample
@@ -42,13 +48,10 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
             error("Warning: Horizon selected (", horizon, " hours) is shorter than the event duration (", event.length, " hours). Consider increasing the default horizon or checking the timing of events in this sample.")
         end
 
-        # Create the model for the event
-        m_event = build_operation_model(sys; optimisation_window=horizon, move_forward=horizon, input_folder=input_folder, optimiser=optimiser, DER_parameters=DER_parameters)
-
         # Update the model parameters to reflect the event conditions (e.g., generator outages, initial state of charge of storage)
         initial_soc_stor = res.stor_energy[:, event.start_index - 1] # Initial state of charge of storage at the start of the event
         initial_soc_genstor = res.genstor_energy[:, event.start_index - 1] # Initial state of charge of genstorage at the start of the event
-        m_event = update_model_parameters(m_event, sys, event.start_index, initial_soc_stor, initial_soc_genstor)
+        m_event = update_model_parameters(m_event, sys, event.start_index, initial_soc_stor, initial_soc_genstor; end_index=event.start_index + horizon - 1) # Update the model parameters for the time steps in the horizon of the event
         m_event = updateGenCapacity(m_event, sys, event.start_index, genAvSamples.available[:,:,event.sample]) # Update the generation capacity in the model to reflect the outages in the event
 
         fixing_index = event.start_index + horizon - 1
