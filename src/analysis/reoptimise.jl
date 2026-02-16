@@ -19,11 +19,11 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
     df_expectation.id = 1:DataFrames.nrow(df_expectation)
 
     # Initialise the results
-    sum_reoptimised = zeros(nrow(df_expectation))
-    length_reoptimised = zeros(nrow(df_expectation))
-    maximum_reoptimised = zeros(nrow(df_expectation))
-    start_reoptimised = zeros(nrow(df_expectation))
-    end_reoptimised = zeros(nrow(df_expectation))
+    sum_reoptimised = zeros(DataFrames.nrow(df_expectation))
+    length_reoptimised = zeros(DataFrames.nrow(df_expectation))
+    maximum_reoptimised = zeros(DataFrames.nrow(df_expectation))
+    start_reoptimised = zeros(DataFrames.nrow(df_expectation))
+    end_reoptimised = zeros(DataFrames.nrow(df_expectation))
 
     # For now just iterate through all events
     # TODO: Filter for events here first to avoid calculating all events
@@ -35,7 +35,7 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
 
     # Initialise the model parameters once to get the capacities of the units correctly
     m_event = update_model_parameters(m_event, sys, 1, zeros(m_event[:Nstors]), zeros(m_event[:Ngenstors]))
-    
+
     for event in eachrow(df_expectation)
 
         # For determining the horizon: Need to check when next event was happening in this sample
