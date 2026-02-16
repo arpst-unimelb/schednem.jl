@@ -293,9 +293,6 @@ function remove_constraints_EnergyFixed(m)
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
 
-    # These constraints are added as bounds
-    MOI.set(m, POI.ConstraintsInterpretation(), POI.BOUNDS_AND_CONSTRAINTS)
-
     if Nstors > 0
         set_lower_bound.(m[:e_stor], 0.0)
         set_lower_bound.(m[:e_stor][:,index], 0.0)
@@ -330,9 +327,6 @@ function add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_ene
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
 
-    # These constraints are added as bounds
-    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
-
     # Storage energy level fixed constraints
     if Nstors > 0
         set_lower_bound.(m[:e_stor], 0.0) # First set all the lower bounds to zero to avoid errors when adding the constraints
@@ -340,7 +334,7 @@ function add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_ene
     end
     for gs in 1:Ngenstors
         set_lower_bound.(m[:e_genstor][gs,:], 0.0) # First set all the lower bounds to zero to avoid errors when adding the constraints
-        set_lower_bound(m[:e_genstor][gs,index], genstor_energy_level[gs] - tolerance)
+        set_lower_bound.(m[:e_genstor][gs,index], genstor_energy_level[gs] - tolerance)
     end
 
     return m
