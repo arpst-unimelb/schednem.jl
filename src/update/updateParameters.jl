@@ -24,6 +24,10 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
         remaining_t = 1:0
     end
 
+    # Some parameters should always be updated for the full window length, to avoid infeasibility.
+    t_full = 1:m[:N]
+    idxs_full = start_index .+ t_full .- 1
+
     # Extract system parameters
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
@@ -47,7 +51,7 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
     if Nstors > 0
         set_parameter_value.(m[:stor_charge_cap][:,t], sys.storages.charge_capacity[:, idxs])
         set_parameter_value.(m[:stor_discharge_cap][:,t], sys.storages.discharge_capacity[:, idxs])
-        set_parameter_value.(m[:stor_energy_cap][:,t], sys.storages.energy_capacity[:, idxs])
+        set_parameter_value.(m[:stor_energy_cap][:,t_full], sys.storages.energy_capacity[:, idxs_full])
 
         # Storage efficiencies
         set_parameter_value.(m[:stor_carryover_eff][:,t], sys.storages.carryover_efficiency[:, idxs])
@@ -66,7 +70,7 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
     if Ngenstors > 0
         set_parameter_value.(m[:genstor_charge_cap][:,t], sys.generatorstorages.charge_capacity[:, idxs])
         set_parameter_value.(m[:genstor_discharge_cap][:,t], sys.generatorstorages.discharge_capacity[:, idxs])
-        set_parameter_value.(m[:genstor_energy_cap][:,t], sys.generatorstorages.energy_capacity[:, idxs])
+        set_parameter_value.(m[:genstor_energy_cap][:,t_full], sys.generatorstorages.energy_capacity[:, idxs_full])
         set_parameter_value.(m[:genstor_inflow][:,t], sys.generatorstorages.inflow[:, idxs])
 
         # Genstor efficiencies

@@ -1,5 +1,5 @@
 #%% ========================================================================================================================
-function add_objective(m, sys)
+function add_objective(m, sys; hydro_discharging_price=85.0, storage_discharging_price=1.0)
 
     # Extract system parameters
     N = m[:N]
@@ -61,8 +61,8 @@ function add_objective(m, sys)
     @expression(m, operating_cost, sum(m[:p_gen][g,t] * gens_cost[g] for g=1:Ngens, t=1:N))
     @expression(m, operating_cost_drs, sum(m[:p_borrow_drs][drs,t] * drs_cost[drs] for drs=1:Ndrs, t=1:N; init=zero(1)))
     @expression(m, load_shedding_cost, sum(m[:load_shedding][r,t] * (voll_max - (voll_max - voll_min)/(N-1) * (t-1)) for r=1:Nregions, t=1:N))
-    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * 1 for s=1:Nstors, t=1:N; init=zero(1)))
-    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * 2 for gs=1:Ngenstors, t=1:N; init=zero(1)))
+    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * storage_discharging_price for s=1:Nstors, t=1:N; init=zero(1)))
+    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * hydro_discharging_price for gs=1:Ngenstors, t=1:N; init=zero(1)))
     @expression(m, flow_penalty, sum((m[:p_interface_forward][l,t] + m[:p_interface_backward][l,t]) * 1.0 for l=1:Ninterfaces, t=1:N))
     @expression(m, genstor_energy_target_penalty, sum(m[:genstor_energy_target_slack][gs] * voll_min * 0.99 for gs=1:Ngenstors; init=zero(1)))
 

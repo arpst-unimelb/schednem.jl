@@ -23,28 +23,9 @@ include("objective.jl")
 function build_operation_model(sys; 
     optimisation_window::Int=24, move_forward::Int=24, 
     input_folder::String="", optimiser=HiGHS.Optimizer(),
-    DER_parameters::Dict=Dict(
-            "DSP_flexibility"=>true, 
-                "DSP_payback_window"=>24, 
-                "DSP_interest"=>-1.0,
-                "DSP_payback_before_borrowing"=>false, 
-                "DSP_limit_energy_per_window"=>Dict(
-                    "enabled" => true,
-                    "max_energy_time_window" => 24, 
-                    "max_energy_per_window_per_capacity" => 4, 
-                    "limits_on_price_bands" => [0] 
-                ),
-            "EV_charge_flexibility"=>false, 
-                "EV_payback_window"=>8,
-                "EV_interest"=>0.0, 
-                "EV_payback_before_borrowing"=>false, 
-                "EV_limit_energy_per_window"=>Dict(
-                    "enabled" => false,
-                    "max_energy_time_window" => 24, 
-                    "max_energy_per_window_per_capacity" => 24
-                ),
-            "VPP_flexibility"=>true
-        )
+    DER_parameters::Dict=get_DER_parameters(),
+    hydro_discharging_price::Float64=85.0,
+    storage_discharging_price::Float64=1.0
     )
 
     # First check that the optimisation window is larger than the step size
@@ -92,7 +73,7 @@ function build_operation_model(sys;
     m = add_variables(m)
 
     # Add objective function
-    m = add_objective(m, sys)
+    m = add_objective(m, sys; hydro_discharging_price=hydro_discharging_price, storage_discharging_price=storage_discharging_price)
 
     # Add constraints
     m = add_constraint_powerBalance(m, sys)

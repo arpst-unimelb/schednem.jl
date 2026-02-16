@@ -19,23 +19,23 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
     df_expectation.id = 1:DataFrames.nrow(df_expectation)
 
     # Initialise the results
-    sum_reoptimised = df_expectation.sum
-    length_reoptimised = df_expectation.length
-    maximum_reoptimised = df_expectation.maximum
-    start_reoptimised = df_expectation.start_index
-    end_reoptimised = df_expectation.end_index
+    sum_reoptimised = zeros(nrow(df_expectation))
+    length_reoptimised = zeros(nrow(df_expectation))
+    maximum_reoptimised = zeros(nrow(df_expectation))
+    start_reoptimised = zeros(nrow(df_expectation))
+    end_reoptimised = zeros(nrow(df_expectation))
 
     # For now just iterate through all events
     # TODO: Filter for events here first to avoid calculating all events
     # TODO: Add DER operation here as well
-    # TODO: Find a way to not rebuild the model for each event?
     # TODO: Parallelise this loop if possible
 
     # Build the model once (with the full window length) and then update the parameters for each event
     m_event = build_operation_model(sys; optimisation_window=max_horizon, move_forward=max_horizon, input_folder=input_folder, optimiser=optimiser, DER_parameters=DER_parameters)
 
-
-
+    # Initialise the model parameters once to get the capacities of the units correctly
+    m_event = update_model_parameters(m_event, sys, 1, zeros(m_event[:Nstors]), zeros(m_event[:Ngenstors]))
+    
     for event in eachrow(df_expectation)
 
         # For determining the horizon: Need to check when next event was happening in this sample
@@ -45,7 +45,13 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
         end_time_max = minimum(vcat(df_expectation[idxs_relevant, :start_index], [8760]))
         horizon = min(max(default_horizon, event.length + min_time_after_event), end_time_max - event.start_index) # Select a horizon that is at least as long as the event, but not too long to avoid overlapping with the next event
         if horizon < event.length
-            error("Warning: Horizon selected (", horizon, " hours) is shorter than the event duration (", event.length, " hours). Consider increasing the default horizon or checking the timing of events in this sample.")
+            @warn ("Event ID $(event.id): Horizon selected (", horizon, " hours) is shorter than the event duration (", event.length, " hours). Skipping re-optimisation.")
+            sum_reoptimised[event.id] = NaN
+            length_reoptimised[event.id] = NaN
+            maximum_reoptimised[event.id] = NaN
+            start_reoptimised[event.id] = NaN
+            end_reoptimised[event.id] = NaN
+            continue
         end
 
         # Update the model parameters to reflect the event conditions (e.g., generator outages, initial state of charge of storage)
@@ -61,13 +67,14 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
 
         # Optimize the model
         optimize!(m_event_fixed)
-        @assert is_solved_and_feasible(m_event_fixed) "Re-optimisation failed for event ID $(event.id) at time step $(event.start_index)."
+        @assert is_solved_and_feasible(m_event_fixed) "Re-optimisation failed for event ID $(event.id) at time step $(event.start_index) in sample $(event.sample)."
 
         # Update the results in the DataFrame
         shedding = value.(m_event_fixed[:load_shedding])[event.region, :]
         sum_reoptimised[event.id] = round(Int,sum(shedding))
         length_reoptimised[event.id] = sum(shedding .> 0)
         maximum_reoptimised[event.id] = round(Int,maximum(shedding))
+
         if sum(shedding) > 0
             start_reoptimised[event.id] = event.start_index + findfirst(shedding .> 0) - 1 # Find the first time step where shedding is happening and add it to the start index of the event
             end_reoptimised[event.id] = event.start_index + findlast(shedding .> 0) - 1 # Find the last time step where shedding is happening and add it to the start index of the event
