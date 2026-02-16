@@ -4,7 +4,10 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
 
     if total_length < start_index + m[:N] - 1
         end_index = total_length
+        N = end_index - start_index + 1
         @warn "Last optimisation window is shorter ($N) than optimisation_window ($(m[:N]))."
+    else
+        N = m[:N]
     end
 
     # If end_index is not provided or is zero, use the full window length
@@ -18,14 +21,14 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
         # Define the remaining time steps, where the parameters will be set to zero
         remaining_t = (end_index - start_index + 2):(m[:N])
     else
-        t = 1:m[:N]
+        t = 1:N
         idxs = start_index .+ t .- 1
         # Empty range for remaining time steps, as we are using the full window
         remaining_t = 1:0
     end
 
     # Some parameters should always be updated for the full window length, to avoid infeasibility.
-    t_full = 1:m[:N]
+    t_full = 1:N
     idxs_full = start_index .+ t_full .- 1
 
     # Extract system parameters
