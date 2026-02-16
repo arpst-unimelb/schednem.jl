@@ -294,7 +294,7 @@ function remove_constraints_EnergyFixed(m)
     Ngenstors = m[:Ngenstors]
 
     # These constraints are added as bounds
-    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.BOUNDS_AND_CONSTRAINTS)
 
     if Nstors > 0
         set_lower_bound.(m[:e_stor], 0.0)
