@@ -1,5 +1,5 @@
 #%% ========================================================================================================================
-function add_variables(model)
+function add_variables(model; genData=nothing)
 
     # Extract system parameters
     Nregions = model[:Nregions]
@@ -39,8 +39,14 @@ function add_variables(model)
 
     @variable(model, load_shedding[1:Nregions, 1:N] >= 0)
 
-    
+    if model[:genOpDetails]
+        # Generator status variables (relaxed to continuous between 0 and 1 for now, but can be changed to binary if needed)
+        @variable(model, 0.0 <= gon[1:Ngens, t=1:N] <= 1.0) # Generator on/off status variable 
+        @variable(model, 0.0 <= stup[1:Ngens, t=1:N] <= 1.0) # Start-up indicator variable
+        @variable(model, 0.0 <= stdw[1:Ngens, t=1:N] <= 1.0) # Shut-down indicator variable
+    end
 
+    # ====================================================================================================
     # And define all the parameters that will be updated (so the model doesn't need to be rebuilt)
     @variables(model, begin
         dem[1:Nregions, 1:N] in Parameter(0.0)
@@ -82,8 +88,16 @@ function add_variables(model)
             drs_energy_cap[1:Ndrs, 1:N] in Parameter(0.0)
             drs_energy_interest[1:Ndrs, 1:N] in Parameter(-1.0) # Note that interest is the growth (positive) or shrinkage (negative) of the borrowed energy, i.e. the payback needs to be more than the borrowed energy if interest is positive, and can be less if interest is negative.
         end)
-    end   
+    end
 
+    if model[:genOpDetails]
+        @variables(model, begin
+            gon_initial[1:Ngens] in Parameter(1.0) # Set initial value to on for all generators
+            p_gen_initial[1:Ngens] in Parameter.(genData.pmin[model[:id_gens]])
+            stup_before[1:Ngens, 1:N] in Parameter(0.0) # Initial setup: No start-up before so that shutdown can happen in first time-step if needed
+            shdw_before[1:Ngens, 1:N] in Parameter(0.0)
+        end)
+    end
 
     return model
 end

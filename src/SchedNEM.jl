@@ -11,7 +11,7 @@ module SchedNEM
 
     
     include("utils.jl")
-    include("parser/addCostData.jl")
+    include("parser/core.jl")
     include("model/core.jl")
     include("update/core.jl")
     include("analysis/core.jl")

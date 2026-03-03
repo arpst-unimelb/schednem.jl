@@ -8,9 +8,9 @@ include("objective.jl")
     build_operation_model(sys; optimisation_window::Int=24, move_forward::Int=24, input_folder::String="", optimiser=HiGHS.Optimizer(), include_DSP::Bool=true)
 
 
-# Optional arguments:
-- `include_DSP::Bool=true`: Whether to include demand response in the model. If false, demand response variables and constraints will not be added to the model, and the number of demand response units will be set to 0.  
 
+# Optional arguments:
+- 'generatorOperationDetails': If true, the model includes generator operation details such as ramping limits, minimum up/down times, and start-up/shut-down costs. This can increase the realism of the model but also increases the complexity and solution time. Default is true.
 
 
 # DSP parameters (only relevant if `include_DSP=true`):
@@ -21,9 +21,10 @@ include("objective.jl")
 
 """
 function build_operation_model(sys; 
-    optimisation_window::Int=24, move_forward::Int=24, 
+    optimisation_window::Int=48, move_forward::Int=24, 
     input_folder::String="", optimiser=HiGHS.Optimizer(),
     DER_parameters::Dict=get_DER_parameters(),
+    generatorOperationDetails::Bool=true,
     hydro_discharging_price::Float64=85.0,
     storage_discharging_price::Float64=1.0
     )
@@ -31,6 +32,10 @@ function build_operation_model(sys;
     # First check that the optimisation window is larger than the step size
     if optimisation_window < move_forward
         @error "The optimisation window must be larger than or equal to the move forward step size."
+    end
+
+    if (optimisation_window - move_forward < 24) && (generatorOperationDetails)
+        @warn "The optimisation window might not be long enough to fully capture the generator operation details (e.g., minimum up/down times) with the selected move forward step size. Consider increasing the optimisation window."
     end
 
     sys = addVollData(sys)
@@ -56,10 +61,20 @@ function build_operation_model(sys;
 
     m[:Nregions] = Nregions  # Save the number of regions as a parameter
     m[:Ngens] = length(sys.generators.names)  # Save the number of generators as a parameter
+    m[:genOpDetails] = generatorOperationDetails # Save whether generator operation details are included as a parameter
     m[:Nstors] = length(sys.storages.names)  # Save the number of storages as a parameter
     m[:Ngenstors] = length(sys.generatorstorages.names)  # Save the number of generator-storages as a parameter
     m[:Ninterfaces] = Ninterfaces  # Save the number of interfaces as a parameter
     m[:connection_matrix] = connection_matrix  # Save the connection matrix as a parameter
+
+    if generatorOperationDetails
+        # Add the generator ids as a parameter to the model to be used in the constraints
+        m[:id_gens] = parse.(Int, first.(split.(sys.generators.names, "_")))
+        # Get the generator operation data
+        genData = getGenOperationData(input_folder)
+    else
+        genData = nothing
+    end
 
     if DER_parameters["DSP_flexibility"] || DER_parameters["EV_charge_flexibility"]
         m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
@@ -70,16 +85,22 @@ function build_operation_model(sys;
     end
 
     # Add decision variables
-    m = add_variables(m)
+    m = add_variables(m; genData)
 
     # Add objective function
-    m = add_objective(m, sys; hydro_discharging_price=hydro_discharging_price, storage_discharging_price=storage_discharging_price)
+    m = add_objective(m, sys; hydro_discharging_price=hydro_discharging_price, storage_discharging_price=storage_discharging_price, genData=genData)
 
     # Add constraints
     m = add_constraint_powerBalance(m, sys)
-    m = add_constraint_techLimits(m)
+    m = add_constraint_techLimits(m; genData=genData)
     m = add_constraints_storageConservation(m)
     m = add_constraints_genstorEnergyTarget(m)
+
+    if generatorOperationDetails
+        add_constraints_rampLimits!(m, genData)
+        add_constraints_commitment!(m, genData)
+        add_constraints_minUpDownTime!(m, genData)
+    end
 
     # Add DER specific constraints
     if DER_parameters["DSP_flexibility"] || DER_parameters["EV_charge_flexibility"]
