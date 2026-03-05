@@ -41,7 +41,7 @@ function add_constraint_techLimits(m; genData=nothing)
     Ngenstors = m[:Ngenstors]
 
     # Generator Limits
-    if m[:genOpDetails]
+    if m[:genOpDetails].uc
         # These constraints are added as constraints (not bounds) to allow for the on/off status variable
         MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
         @constraint(m, genLimits[g=1:Ngens, t=1:N], m[:p_gen][g,t] <= m[:gen_cap][g,t] * m[:gon][g,t])
@@ -389,7 +389,6 @@ end
 All unit commitment constraints are based on the formulation in:
 L. Zhang, T. Capuder, and P. Mancarella, “Unified Unit Commitment Formulation and Fast Multi-Service LP Model for Flexibility Evaluation in Sustainable Power Systems,” IEEE Trans. Sustain. Energy, vol. 7, no. 2, pp. 658–671, Apr. 2016, doi: 10.1109/TSTE.2015.2497411.
 """
-
 function add_constraints_rampLimits!(model, genData)
     
     # Extract system parameters
@@ -403,21 +402,20 @@ function add_constraints_rampLimits!(model, genData)
     # ====== Ramping limits ====== 
     # Ramp up limits (with increased limit for start-up)
     condition_ramp_up = genData.rup[id_gens] .< genData.pmax[id_gens] # Only add ramping constraints for generators with constraining ramping limits (i.e., rup < pmax)
-    @constraint(model, rampUp[g=1:Ngens, t=1:N; condition_ramp_up[g]],
-        model[:p_gen][g,t] - (t == 1 ? model[:p_gen_initial][g] : model[:p_gen][g,t-1]) <= genData.rup[id_gens[g]] + (model[:stup][g,t] * genData.pmin[id_gens[g]]))
+    @constraint(model, rampUp[g=1:Ngens, t=1:N; model[:genOpDetails].ramping && condition_ramp_up[g]],
+        model[:p_gen][g,t] - (t == 1 ? model[:p_gen_initial][g] : model[:p_gen][g,t-1]) <= genData.rup[id_gens[g]] + (model[:genOpDetails].uc ? model[:stup][g,t] * genData.pmin[id_gens[g]] : 0.0))
 
 
     # Ramp down limits (with increased limit for shut-down)
     condition_ramp_down = genData.rdw[id_gens] .< genData.pmax[id_gens] # Only add ramping constraints for generators with constraining ramping limits (i.e., rdw < pmax)
-    @constraint(model, rampDown[g=1:Ngens, t=1:N; condition_ramp_down[g]],
-        (t == 1 ? model[:p_gen_initial][g] : model[:p_gen][g,t-1]) - model[:p_gen][g,t] <= genData.rdw[id_gens[g]] + (model[:stdw][g,t] * genData.pmin[id_gens[g]]))
+    @constraint(model, rampDown[g=1:Ngens, t=1:N; model[:genOpDetails].ramping && condition_ramp_down[g]],
+        (t == 1 ? model[:p_gen_initial][g] : model[:p_gen][g,t-1]) - model[:p_gen][g,t] <= genData.rdw[id_gens[g]] + (model[:genOpDetails].uc ? model[:shdw][g,t] * genData.pmin[id_gens[g]] : 0.0))
 
     return model
 end
 
 """
     add_constraints_commitment!(model, genData)
-
 
 """
 function add_constraints_commitment!(model, genData)
@@ -431,12 +429,12 @@ function add_constraints_commitment!(model, genData)
     condition_commitment = (genData.down_time[id_gens] .> 0) .| (genData.up_time[id_gens] .> 0) .| (genData.pmin[id_gens] .> 0)
 
     # Start-up and shut-down indicators should reflect changes in commitment status
-    @constraint(model, stup_shdw[g=1:Ngens, t=1:N; condition_commitment[g]],
-        model[:stup][g,t] - model[:stdw][g,t] == model[:gon][g,t] - (t == 1 ? model[:gon_initial][g] : model[:gon][g,t-1])) 
+    @constraint(model, stup_shdw[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_commitment[g]],
+        model[:stup][g,t] - model[:shdw][g,t] == model[:gon][g,t] - (t == 1 ? model[:gon_initial][g] : model[:gon][g,t-1])) 
 
     # Cannot start up and shut down at the same time
-    @constraint(model, stup_shdw_check[g=1:Ngens, t=1:N; condition_commitment[g]],
-        model[:stup][g,t] + model[:stdw][g,t] <= 1.0) 
+    @constraint(model, stup_shdw_check[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_commitment[g]],
+        model[:stup][g,t] + model[:shdw][g,t] <= 1.0) 
         
     return model
 end
@@ -458,13 +456,13 @@ function add_constraints_minUpDownTime!(model, genData)
 
     # Minimum up time constraints
     condition_min_up = genData.up_time[id_gens] .> 0 # Only add minimum up time constraints for generators with minimum up time requirements
-    @constraint(model, minUpTime[g=1:Ngens, t=1:N; condition_min_up[g]],
+    @constraint(model, minUpTime[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_min_up[g]],
         model[:gon][g,t] >= sum(model[:stup][g,tau] for tau = max(1, t - ceil(Int, genData.up_time[id_gens[g]])+1):t) + sum(model[:stup_before][g, N-ceil(Int, genData.up_time[id_gens[g]])+t+1:N])) # Include start-up before the start of the optimisation horizon (if needed)
 
     # Minimum down time constraints
     condition_min_down = genData.down_time[id_gens] .> 0 # Only add minimum down time constraints for generators with minimum down time requirements
-    @constraint(model, minDownTime[g=1:Ngens, t=1:N; condition_min_down[g]],
-        model[:gon][g,t] <= 1.0 - sum(model[:stdw][g,tau] for tau = max(1, t - ceil(Int, genData.down_time[id_gens[g]])+1):t) - sum(model[:shdw_before][g, N-ceil(Int, genData.down_time[id_gens[g]])+t+1:N])) # Include shut-down before the start of the optimisation horizon (if needed)
+    @constraint(model, minDownTime[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_min_down[g]],
+        model[:gon][g,t] <= 1.0 - sum(model[:shdw][g,tau] for tau = max(1, t - ceil(Int, genData.down_time[id_gens[g]])+1):t) - sum(model[:shdw_before][g, N-ceil(Int, genData.down_time[id_gens[g]])+t+1:N])) # Include shut-down before the start of the optimisation horizon (if needed)
 
     return model
 end

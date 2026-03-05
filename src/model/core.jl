@@ -24,9 +24,9 @@ function build_operation_model(sys;
     optimisation_window::Int=48, move_forward::Int=24, 
     input_folder::String="", optimiser=HiGHS.Optimizer(),
     DER_parameters::Dict=get_DER_parameters(),
-    generatorOperationDetails::Bool=true,
+    genOpDetails=(uc=true, ramping=true, binary=false),
     hydro_discharging_price::Float64=85.0,
-    storage_discharging_price::Float64=1.0
+    storage_discharging_price::Float64=1.0,
     )
 
     # First check that the optimisation window is larger than the step size
@@ -34,8 +34,8 @@ function build_operation_model(sys;
         @error "The optimisation window must be larger than or equal to the move forward step size."
     end
 
-    if (optimisation_window - move_forward < 24) && (generatorOperationDetails)
-        @warn "The optimisation window might not be long enough to fully capture the generator operation details (e.g., minimum up/down times) with the selected move forward step size. Consider increasing the optimisation window."
+    if (optimisation_window - move_forward < 24) && (genOpDetails.uc)
+        @warn "The optimisation window might not be long enough to fully capture the generator operation details (e.g., minimum up/down times) with the selected move forward step size."
     end
 
     sys = addVollData(sys)
@@ -61,17 +61,18 @@ function build_operation_model(sys;
 
     m[:Nregions] = Nregions  # Save the number of regions as a parameter
     m[:Ngens] = length(sys.generators.names)  # Save the number of generators as a parameter
-    m[:genOpDetails] = generatorOperationDetails # Save whether generator operation details are included as a parameter
+    m[:genOpDetails] = genOpDetails # Save whether generator operation details are included as a parameter
     m[:Nstors] = length(sys.storages.names)  # Save the number of storages as a parameter
     m[:Ngenstors] = length(sys.generatorstorages.names)  # Save the number of generator-storages as a parameter
     m[:Ninterfaces] = Ninterfaces  # Save the number of interfaces as a parameter
     m[:connection_matrix] = connection_matrix  # Save the connection matrix as a parameter
 
-    if generatorOperationDetails
+    if genOpDetails.uc || genOpDetails.ramping
         # Add the generator ids as a parameter to the model to be used in the constraints
         m[:id_gens] = parse.(Int, first.(split.(sys.generators.names, "_")))
         # Get the generator operation data
         genData = getGenOperationData(input_folder)
+        m[:rup] = genData.rup[m[:id_gens]] # Save the ramp-up limits (to use in getResults later)
     else
         genData = nothing
     end
@@ -96,7 +97,7 @@ function build_operation_model(sys;
     m = add_constraints_storageConservation(m)
     m = add_constraints_genstorEnergyTarget(m)
 
-    if generatorOperationDetails
+    if genOpDetails.uc || genOpDetails.ramping
         add_constraints_rampLimits!(m, genData)
         add_constraints_commitment!(m, genData)
         add_constraints_minUpDownTime!(m, genData)
@@ -111,6 +112,9 @@ function build_operation_model(sys;
     if !DER_parameters["VPP_flexibility"]
         m = add_constraints_disableVPP(m, sys)
     end
+
+    # Initialise with first step
+    update_model_parameters!(m, sys, 1, zeros(m[:Nstors]), zeros(m[:Ngenstors]))
 
     return m
 end
@@ -164,8 +168,21 @@ function run_operation_model(m, sys; output_folder_schedule::String="", start_si
     genstor_energy_initial = zeros(Int, Ngenstors)
     drs_borrowing = zeros(Int, Ndrs, full_horizon)
     drs_payback = zeros(Int, Ndrs, full_horizon)
+    p_gen = zeros(Int, m[:Ngens], full_horizon)
+    p_gen_max = zeros(Int, m[:Ngens], full_horizon)
+    gon = zeros(Int, m[:Ngens], full_horizon)
+    stup = zeros(Int, m[:Ngens], full_horizon)
+    shdw = zeros(Int, m[:Ngens], full_horizon)
 
     # TODO: Add updating initial energy here from sys.storages attributes when available in PRAS
+
+    # Initial values
+    initial_soc_stor = stor_energy_initial
+    initial_soc_genstor = genstor_energy_initial
+    p_gen_initial = []
+    gon_initial = []
+    stup_before = []
+    shdw_before = []
 
     # Run the rolling horizon optimisation
     move_forward_step = m[:move_forward]
@@ -174,29 +191,47 @@ function run_operation_model(m, sys; output_folder_schedule::String="", start_si
         if start_idx % (round(Int,full_horizon / 10)) == 0
             println("Optimisation progress: Time step ", start_idx, " of ", full_horizon)
         end
-        println("Optimising from time step ", start_idx, " to ", min(start_idx + m[:N] - 1, full_horizon))
+        #println("Optimising from time step ", start_idx, " to ", min(start_idx + m[:N] - 1, full_horizon))
 
         # Determine initial state of charge for storages and generator-storages
-        if start_idx == 1
-            initial_soc_stor = stor_energy_initial
-            initial_soc_genstor = genstor_energy_initial
-        else
+        if start_idx != start_simulation
             if Nstors > 0
                 initial_soc_stor = value.(m[:e_stor])[:,move_forward_step]
             end
             if Ngenstors > 0
                 initial_soc_genstor = value.(m[:e_genstor])[:,move_forward_step]
             end
+            if m[:genOpDetails].ramping
+                # get the generation at the last time step of previous window
+                p_gen_initial = value.(m[:p_gen])[:,move_forward_step]
+            end
+            if m[:genOpDetails].uc
+                # Get the commitment status, start-up and shut-down at the last time step of previous window
+                gon_initial = value.(m[:gon])[:,move_forward_step]
+
+                stup_before = zeros(size(m[:stup_before][:,:]))
+                shdw_before = zeros(size(m[:shdw_before][:,:]))
+                # Shift the startup and shutdown indicators
+                stup_before[:,1:move_forward_step] = value.(m[:stup_before])[:,move_forward_step+1:end] # Get the earlier time steps from the second previous optimisation
+                stup_before[:,move_forward_step+1:end] = value.(m[:stup])[:,1:move_forward_step] # Get the last time steps from within the previous optimisation
+                shdw_before[:,1:move_forward_step] = value.(m[:shdw_before])[:,move_forward_step+1:end]
+                shdw_before[:,move_forward_step+1:end] = value.(m[:shdw])[:,1:move_forward_step]
+            end
         end
 
         # Update model parameters
-        m = update_model_parameters(m, sys, start_idx, initial_soc_stor, initial_soc_genstor)
+        update_model_parameters!(m, sys, start_idx, initial_soc_stor, initial_soc_genstor; 
+            gon_initial=gon_initial, stup_before=stup_before, shdw_before=shdw_before, p_gen_initial=p_gen_initial)
+
 
         # Optimize the model
         optimize!(m)
 
         # Check if the optimization was successful
-        @assert is_solved_and_feasible(m) "Optimization failed at time step $start_idx"    
+        if !is_solved_and_feasible(m)
+            @warn "Optimization failed at time step $start_idx. Ending simulation and returning infeasible model."
+            return m
+        end
 
         # Extract results for full the current optimisation window
         end_idx = min(start_idx + m[:N] - 1, full_horizon)
@@ -214,6 +249,12 @@ function run_operation_model(m, sys; output_folder_schedule::String="", start_si
 
         drs_borrowing[:, start_idx:end_idx] = res_window.drs_borrowing[:, 1:time_steps]
         drs_payback[:, start_idx:end_idx] = res_window.drs_payback[:, 1:time_steps]
+
+        p_gen[:, start_idx:end_idx] = res_window.p_gen[:, 1:time_steps]
+        p_gen_max[:, start_idx:end_idx] = res_window.p_gen_max[:, 1:time_steps]
+        gon[:, start_idx:end_idx] = res_window.gon[:, 1:time_steps]
+        stup[:, start_idx:end_idx] = res_window.stup[:, 1:time_steps]
+        shdw[:, start_idx:end_idx] = res_window.shdw[:, 1:time_steps]
 
         # Check if storage and generator-storage is operating as expected
         if sum(stor_charging[:, start_idx:end_idx] .* stor_discharging[:, start_idx:end_idx] .> 0) > 0
@@ -234,10 +275,18 @@ function run_operation_model(m, sys; output_folder_schedule::String="", start_si
         genstor_energy=genstor_energy,
         genstor_energy_initial=genstor_energy_initial,
         drs_borrowing=drs_borrowing,
-        drs_payback=drs_payback
+        drs_payback=drs_payback,
+        p_gen=p_gen,
+        p_gen_max=p_gen_max,
+        gon=gon,
+        stup=stup,
+        shdw=shdw
     )
 
     if (output_folder_schedule != "") && isdir(output_folder_schedule)
+        if m[:genOpDetails].uc || m[:genOpDetails].ramping
+            @warn "Generator operation details were included in the model, but the full schedule (including generator commitment and ramping) is not currently being saved. Only storage and demand response schedules are being saved. Saving full generator schedule is a planned future improvement."
+        end
         if !("case" in keys(sys.attrs))
             @warn "'case' attribute not found in system attributes. Couldn't save schedule."
         else

@@ -1,6 +1,13 @@
+"""
+    get_results(m::JuMP.Model; conservative_rounding=false)
+
+Function to extract the results from the solution of the optimization model and return them in a mutable struct.
+
+"""
 function get_results(m; conservative_rounding=false)
 
     N = m[:N]
+    Ngens = m[:Ngens]
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
     Ndrs = m[:Ndrs]
@@ -17,6 +24,27 @@ function get_results(m; conservative_rounding=false)
     p_borrow_drs = zeros(Int, Ndrs, N)
     p_payback_drs = zeros(Int, Ndrs, N)
 
+    gon = ones(Int, Ngens, N)
+    stup = zeros(Int, Ngens, N)
+    shdw = zeros(Int, Ngens, N)
+
+    # Generator details
+    p_gen = round.(Int, value.(m[:p_gen]))
+    p_gen_max = round.(Int, value.(m[:gen_cap]))
+
+    # If ramping activated, update the p_gen_max to always to the previous time step's generation + ramping limit
+    # --- This is conservative! But if storages are also turned off, this should work to identify critical times if ramping limits are a problem. If only used for PRAS input, this does not work.
+    if m[:genOpDetails].ramping
+        p_gen_max[:,1] = round.(Int, min.(value.(m[:p_gen_initial][:]) .+ m[:rup], p_gen_max[:,1])) 
+        p_gen_max[:,2:end] = round.(Int, min.(p_gen[:, 1:end-1] .+ m[:rup], p_gen_max[:,2:end]))
+    end
+
+    if m[:genOpDetails].uc
+        gon = round.(Int, value.(m[:gon]))
+        stup = round.(Int, value.(m[:stup]))
+        shdw = round.(Int, value.(m[:shdw]))
+    end
+    
     if Nstors > 0
             # Storage charging/discharging profiles
         p_stor_charge = round.(Int,value.(m[:p_stor_charge]))
@@ -39,7 +67,6 @@ function get_results(m; conservative_rounding=false)
         p_payback_drs = round.(Int,value.(m[:p_payback_drs]))
     end
 
-
     return (stor_charging=p_stor_charge,
         stor_discharging=p_stor_discharge,
         stor_energy=e_stor,
@@ -49,7 +76,12 @@ function get_results(m; conservative_rounding=false)
         genstor_energy=e_genstor,
         genstor_energy_initial=e_genstor_ini,
         drs_borrowing=p_borrow_drs,
-        drs_payback=p_payback_drs
+        drs_payback=p_payback_drs,
+        p_gen = p_gen,
+        p_gen_max = p_gen_max,
+        gon = gon,
+        stup = stup,
+        shdw = shdw
     )
 
 end

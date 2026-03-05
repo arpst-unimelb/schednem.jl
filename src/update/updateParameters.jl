@@ -1,4 +1,12 @@
-function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initial_soc_genstor=[]; end_index::Int=0)
+"""
+
+
+Ramping: If ramping is activated and p_gen_initial is empty, set p_gen_initial to 0.5 * the max capacity for all generators.
+
+
+"""
+function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], initial_soc_genstor=[]; end_index::Int=0, 
+    gon_initial=[], stup_before=[], shdw_before=[], p_gen_initial=[])
 
     total_length, _ = get_params(sys)
 
@@ -99,6 +107,38 @@ function update_model_parameters(m, sys, start_index, initial_soc_stor=[], initi
         set_parameter_value.(m[:drs_borrow_cap][:,remaining_t], fill(0.0, size(m[:drs_borrow_cap][:,remaining_t])))
         set_parameter_value.(m[:drs_payback_cap][:,remaining_t], fill(0.0, size(m[:drs_payback_cap][:,remaining_t])))
         set_parameter_value.(m[:drs_energy_interest][:,remaining_t], fill(-1.0, size(m[:drs_energy_interest][:,remaining_t])))
+    end
+
+    # Update initial generator on/off status if unit commitment is enabled
+    if m[:genOpDetails].uc
+        if !isempty(gon_initial)
+            set_parameter_value.(m[:gon_initial][:], gon_initial[:])
+        else
+            #@warn "Initial generator on/off status not provided. Setting all generators to on at the first time step."
+            set_parameter_value.(m[:gon_initial][:], fill(1.0, size(m[:gon_initial][:])))
+        end
+        if !isempty(stup_before)
+            set_parameter_value.(m[:stup_before][:,:], stup_before[:,:])
+        else
+            #@warn "Start-up indicator values not provided. Setting all to zero at the first time step."
+            set_parameter_value.(m[:stup_before][:,:], fill(0.0, size(m[:stup_before][:,:])))
+        end
+        if !isempty(shdw_before)
+            set_parameter_value.(m[:shdw_before][:,:], shdw_before[:,:])
+        else
+            #@warn "Shut-down indicator values not provided. Setting all to zero at the first time step."
+            set_parameter_value.(m[:shdw_before][:,:], fill(0.0, size(m[:shdw_before][:,:])))
+        end
+    end
+
+    if m[:genOpDetails].ramping
+        # If ramping is activated, also update the ramping limits based on the new generator capacities and the previous time step's generation
+        if !isempty(p_gen_initial)
+            set_parameter_value.(m[:p_gen_initial][:], p_gen_initial[:])
+        else
+            #@warn "Initial generation values not provided for ramping. Setting all to half the capacity before first time step."
+            set_parameter_value.(m[:p_gen_initial][:], sys.generators.capacity[:, max(idxs[1]-1, 1)] * 0.5) # Set initial generation to 50% of capacity as a default
+        end
     end
 
     return m

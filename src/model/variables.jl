@@ -39,11 +39,18 @@ function add_variables(model; genData=nothing)
 
     @variable(model, load_shedding[1:Nregions, 1:N] >= 0)
 
-    if model[:genOpDetails]
-        # Generator status variables (relaxed to continuous between 0 and 1 for now, but can be changed to binary if needed)
-        @variable(model, 0.0 <= gon[1:Ngens, t=1:N] <= 1.0) # Generator on/off status variable 
-        @variable(model, 0.0 <= stup[1:Ngens, t=1:N] <= 1.0) # Start-up indicator variable
-        @variable(model, 0.0 <= stdw[1:Ngens, t=1:N] <= 1.0) # Shut-down indicator variable
+    if model[:genOpDetails].uc
+        if model[:genOpDetails].binary
+             # Generator status variables (binary)
+            @variable(model, gon[1:Ngens, t=1:N], Bin) # Generator on/off status variable 
+            @variable(model, stup[1:Ngens, t=1:N], Bin) # Start-up indicator variable
+            @variable(model, shdw[1:Ngens, t=1:N], Bin) # Shut-down indicator variable
+        else
+            # Generator status variables (relaxed to continuous between 0 and 1 for now, but can be changed to binary if needed)
+            @variable(model, 0.0 <= gon[1:Ngens, t=1:N] <= 1.0) # Generator on/off status variable 
+            @variable(model, 0.0 <= stup[1:Ngens, t=1:N] <= 1.0) # Start-up indicator variable
+            @variable(model, 0.0 <= shdw[1:Ngens, t=1:N] <= 1.0) # Shut-down indicator variable
+        end
     end
 
     # ====================================================================================================
@@ -90,12 +97,17 @@ function add_variables(model; genData=nothing)
         end)
     end
 
-    if model[:genOpDetails]
+    if model[:genOpDetails].uc
         @variables(model, begin
             gon_initial[1:Ngens] in Parameter(1.0) # Set initial value to on for all generators
-            p_gen_initial[1:Ngens] in Parameter.(genData.pmin[model[:id_gens]])
             stup_before[1:Ngens, 1:N] in Parameter(0.0) # Initial setup: No start-up before so that shutdown can happen in first time-step if needed
             shdw_before[1:Ngens, 1:N] in Parameter(0.0)
+        end)
+    end
+
+    if model[:genOpDetails].ramping
+        @variables(model, begin
+            p_gen_initial[1:Ngens] in Parameter.(genData.pmin[model[:id_gens]])
         end)
     end
 
