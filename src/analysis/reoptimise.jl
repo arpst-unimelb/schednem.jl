@@ -9,11 +9,12 @@ Model to re-optimise USE events, to see if the USE changes if storage would be a
 - 'tolerance_storage_energy_fixed`: A non-negative scalar specifying the tolerance for fixing the energy levels. The constraints will ensure that the energy levels are greater than or equal to the specified levels minus this tolerance. This is to account for rounding issues in the results from the initial optimisation.
 
 """
-function reoptimise_all_samples(df_expectation, sys, res, genAvSamples; 
+function reoptimise_all_samples(df_expectation, sys, res, genAvSamples, lineAvSamples; 
     default_horizon::Int=24, min_time_after_event::Int=5, 
     optimiser=HiGHS.Optimizer(), input_folder::String="",
     tolerance_storage_energy_fixed::Float64=1.0,
-    DER_parameters=get_DER_parameters(), max_horizon::Int=48)
+    DER_parameters=get_DER_parameters(), max_horizon::Int=48,
+    genOpDetails=(uc=true, ramping=true, binary=false))
 
     # Add an ID column for easier reference
     df_expectation.id = 1:DataFrames.nrow(df_expectation)
@@ -27,14 +28,11 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
 
     # For now just iterate through all events
     # TODO: Filter for events here first to avoid calculating all events
-    # TODO: Add DER operation here as well
     # TODO: Parallelise this loop if possible
 
     # Build the model once (with the full window length) and then update the parameters for each event
-    m_event = build_operation_model(sys; optimisation_window=max_horizon, move_forward=max_horizon, input_folder=input_folder, optimiser=optimiser, DER_parameters=DER_parameters)
-
-    # Initialise the model parameters once to get the capacities of the units correctly
-    m_event = update_model_parameters(m_event, sys, 1, zeros(m_event[:Nstors]), zeros(m_event[:Ngenstors]))
+    m_event = build_operation_model(sys; optimisation_window=max_horizon, move_forward=max_horizon, 
+        input_folder=input_folder, optimiser=optimiser, DER_parameters=DER_parameters, genOpDetails=genOpDetails)
 
     for event in eachrow(df_expectation)
 
@@ -45,7 +43,8 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
         end_time_max = minimum(vcat(df_expectation[idxs_relevant, :start_index], [8760]))
         horizon = min(max(default_horizon, event.length + min_time_after_event), end_time_max - event.start_index) # Select a horizon that is at least as long as the event, but not too long to avoid overlapping with the next event
         if horizon < event.length
-            @warn ("Event ID $(event.id): Horizon selected (", horizon, " hours) is shorter than the event duration (", event.length, " hours). Skipping re-optimisation.")
+            @warn ("Event ID $(event.id): Horizon selected (", horizon, " hours) is shorter than the event duration (", event.length, " hours). Skipping re-optimisation and adding to the next event.")
+            
             sum_reoptimised[event.id] = NaN
             length_reoptimised[event.id] = NaN
             maximum_reoptimised[event.id] = NaN
@@ -54,11 +53,34 @@ function reoptimise_all_samples(df_expectation, sys, res, genAvSamples;
             continue
         end
 
-        # Update the model parameters to reflect the event conditions (e.g., generator outages, initial state of charge of storage)
+        # Extract all the relevant parameters from the results object to get the correct conditions for the model
         initial_soc_stor = res.stor_energy[:, event.start_index - 1] # Initial state of charge of storage at the start of the event
         initial_soc_genstor = res.genstor_energy[:, event.start_index - 1] # Initial state of charge of genstorage at the start of the event
-        m_event = update_model_parameters(m_event, sys, event.start_index, initial_soc_stor, initial_soc_genstor; end_index=event.start_index + horizon - 1) # Update the model parameters for the time steps in the horizon of the event
-        m_event = updateGenCapacity(m_event, sys, event.start_index, genAvSamples.available[:,:,event.sample]) # Update the generation capacity in the model to reflect the outages in the event
+        if genOpDetails.ramping
+            p_gen_initial = res.p_gen[:, event.start_index - 1] # Initial generation at the start of the event, needed for ramping constraints
+        else
+            p_gen_initial = []
+        end
+
+        if genOpDetails.uc
+            gon_initial = res.gon[:, event.start_index - 1] # Initial commitment status of generators at the start of the event
+            stup_before = res.stup[:, max(1, event.start_index - max_horizon):event.start_index - 1] # Startup profile of generators before the event, needed for startup constraints
+            shdw_before = res.shdw[:, max(1, event.start_index - max_horizon):event.start_index - 1] # Shutdown profile of generators before the event, needed for shutdown constraints
+        else
+            gon_initial = []
+            stup_before = []
+            shdw_before = []
+        end
+
+        # Update the model parameters from the res object values
+        update_model_parameters!(m_event, sys, event.start_index, initial_soc_stor, initial_soc_genstor; 
+            end_index=event.start_index + horizon - 1,
+            p_gen_initial=p_gen_initial,
+            gon_initial=gon_initial, stup_before=stup_before, shdw_before=shdw_before) 
+        
+        # Update the model parameters from the results from PRAS (generation and line availability)
+        updateGenCapacity!(m_event, sys, event.start_index, genAvSamples.available[:,:,event.sample])
+        updateLineCapacity!(m_event, sys, event.start_index, lineAvSamples.available[:,:,event.sample])        
 
         fixing_index = event.start_index + horizon - 1
         final_soc_stor = res.stor_energy[:, fixing_index] # Final state of charge of storage at the end of the event
