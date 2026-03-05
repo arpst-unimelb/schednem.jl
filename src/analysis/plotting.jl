@@ -1,19 +1,25 @@
 # A collection of analysis and plotting functions for visualizing the results of the optimization model.
 
 """
-    plot_timeseries_results(m, sys; region::Int=1)
+    plot_timeseries_results(m, sys; region::Vector{Int}=[])
 
 Function to plot the time series results of the optimization model for a specific region.
 
+# Arguments
+- region: A vector of region indices to plot. If empty, all regions will be plotted.
+
 TODO: Add imports/exports
-TODO: Add option for plotting an aggregate of multiple regions
 
 """
-function plot_timeseries_results(m, sys; region::Int=1)
+function plot_timeseries_results(m, sys; region::Vector=[], title="", legend=:outertopright)
 
-    dem = value.(m[:dem][region, :])
+    if isempty(region)
+        region = collect(1:m[:Nregions])
+    end
 
-    all_gens_in_region = sys.region_gen_idxs[region]
+    dem = sum(value.(m[:dem][region, :]), dims=1)[:] # Sum over all regions in the vector
+
+    all_gens_in_region = vcat(collect.(sys.region_gen_idxs[region])...)
     idx_pv = findall(n -> n in ["RoofPV", "LargePV"], sys.generators.categories[all_gens_in_region])
     idx_w = findall(n -> n in ["Wind"], sys.generators.categories[all_gens_in_region])
     ixd_gas = findall(n -> n in ["CCGT", "OCGT"], sys.generators.categories[all_gens_in_region])
@@ -25,24 +31,27 @@ function plot_timeseries_results(m, sys; region::Int=1)
     gen_other = sum(value.(m[:p_gen][idx_other, :]), dims=1)[:]
 
     if m[:Nstors] > 0
-    stor_discharge = sum(value.(m[:p_stor_discharge][sys.region_stor_idxs[region], :]), dims=1)[:]
-        stor_charge = sum(value.(m[:p_stor_charge][sys.region_stor_idxs[region], :]), dims=1)[:]
+        all_stors_in_region = vcat(collect.(sys.region_stor_idxs[region])...)
+        stor_discharge = sum(value.(m[:p_stor_discharge][all_stors_in_region, :]), dims=1)[:]
+        stor_charge = sum(value.(m[:p_stor_charge][all_stors_in_region, :]), dims=1)[:]
     else
         stor_discharge = zeros(m[:N])
         stor_charge = zeros(m[:N])
     end
 
     if m[:Ngenstors] > 0
-        genstor_discharge = sum(value.(m[:p_genstor_discharge][sys.region_genstor_idxs[region], :]), dims=1)[:]
-        genstor_charge = sum(value.(m[:p_genstor_charge][sys.region_genstor_idxs[region], :]), dims=1)[:]
+        all_genstors_in_region = vcat(collect.(sys.region_genstor_idxs[region])...)
+        genstor_discharge = sum(value.(m[:p_genstor_discharge][all_genstors_in_region, :]), dims=1)[:]
+        genstor_charge = sum(value.(m[:p_genstor_charge][all_genstors_in_region, :]), dims=1)[:]
     else
         genstor_discharge = zeros(m[:N])
         genstor_charge = zeros(m[:N])
     end
 
     if m[:Ndrs] > 0
-        idxs_dsp = intersect(findall(n -> n == "DSP", sys.demandresponses.categories), sys.region_dr_idxs[region])
-        idxs_ev = intersect(findall(n -> n == "EV", sys.demandresponses.categories), sys.region_dr_idxs[region])
+        all_drs_in_region = vcat(collect.(sys.region_dr_idxs[region])...)
+        idxs_dsp = intersect(findall(n -> n == "DSP", sys.demandresponses.categories), all_drs_in_region)
+        idxs_ev = intersect(findall(n -> n == "EV", sys.demandresponses.categories), all_drs_in_region)
         drs_dsp_borrow = sum(value.(m[:p_borrow_drs][idxs_dsp, :]), dims=1)[:]
         drs_ev_borrow = sum(value.(m[:p_borrow_drs][idxs_ev, :]), dims=1)[:]
         drs_dsp_payback = sum(value.(m[:p_payback_drs][idxs_dsp, :]), dims=1)[:]
@@ -54,24 +63,50 @@ function plot_timeseries_results(m, sys; region::Int=1)
         drs_ev_payback = zeros(m[:N])
     end
 
-    shed = value.(m[:load_shedding][region, :])
+    if m[:Ninterfaces] > 0
+        # Find all the lines that are connected to the regions (both import and export)
+        import_idxs = findall(m[:connection_matrix][:, region] .> 0)
+        import_lines = [(i[1]) for i in import_idxs]
+
+        export_idxs = findall(m[:connection_matrix][:, region] .< 0)
+        export_lines = [(i[1]) for i in export_idxs]
+
+        # Remove all the lines that are within the seelcted region
+        internal_lines = intersect(import_lines, export_lines)
+        import_lines = setdiff(import_lines, internal_lines)
+        export_lines = setdiff(export_lines, internal_lines)
+
+        p_import = sum(value.(m[:p_interface_forward][import_lines, :]), dims=1)[:] .+ sum(value.(m[:p_interface_backward][export_lines, :]), dims=1)[:] 
+        p_export = sum(value.(m[:p_interface_forward][export_lines, :]), dims=1)[:] .+ sum(value.(m[:p_interface_backward][import_lines, :]), dims=1)[:] 
+    else
+        p_import = zeros(m[:N])
+        p_export = zeros(m[:N])
+    end
+
+    shed = sum(value.(m[:load_shedding][region, :]), dims=1)[:] # Sum over all regions in the vector
 
     t = 1:length(dem)
-    gen_stack = hcat(gen_other, gen_gas, gen_w, gen_pv, genstor_discharge, stor_discharge, shed, drs_dsp_borrow, drs_ev_borrow)
-    charge_stack = hcat(-genstor_charge, -stor_charge, -drs_dsp_payback, -drs_ev_payback)
+    gen_stack = hcat(gen_other, gen_gas, gen_w, gen_pv, genstor_discharge, stor_discharge, p_import, shed, drs_dsp_borrow, drs_ev_borrow)
+    charge_stack = hcat(-genstor_charge, -stor_charge, -p_export, -drs_dsp_payback, -drs_ev_payback)
 
-    comp_labels = ["Coal" "Gas" "Wind" "Solar PV" "Hydro" "Battery" "Load shedding" "DSP" "EV (shifting)"]
+    comp_labels = ["Coal" "Gas" "Wind" "Solar PV" "Hydro" "Battery" "Imports/Exports" "Load shedding" "DSP" "EV (shifting)"]
     comp_labels[findall(x -> x == 0.0, sum(gen_stack, dims=1)[:])] .= ""
 
-    plt = Plots.areaplot(t, gen_stack ./ 1e3, color=[:black :grey 8 5 10 11 :red :orange :blue], fillalpha = 0.8, labels = comp_labels, lw=0, palette=:Spectral_11)
-    Plots.areaplot!(plt, t, charge_stack ./ 1e3, color=[10 11 :orange :blue], fillalpha = 0.8, labels=["" ""], lw=0, palette=:Spectral_11)
+    plt = Plots.areaplot(t, gen_stack ./ 1e3, color=[:black :grey 8 5 10 11 3 :red :orange :blue], fillalpha = 0.8, 
+        labels = comp_labels, lw=0, palette=:Spectral_11, legend=legend,
+        size=(700, 400))
+    Plots.areaplot!(plt, t, charge_stack ./ 1e3, color=[10 11 3 :orange :blue], fillalpha = 0.8, labels=["" ""], lw=0, palette=:Spectral_11)
     Plots.plot!(plt, t, dem  ./ 1e3; label = "", lw = 1, lc = :black, ls=:dash)
     Plots.plot!(plt, t, (dem .- drs_dsp_borrow .- drs_ev_borrow) ./ 1e3; label = "Net Demand", lw = 2, lc = :black)
     #Plots.areaplot!(plt, t, gen_pv ./ 1e3; label = "Solar PV", lw = 2, lc = :yellow)
 
     Plots.xlabel!("Hour")
     Plots.ylabel!("Power [GW]")
-    Plots.title!("Region: $region | ENS: $(round(sum(shed))) MWh")
+    if title != ""
+        Plots.title!(title)
+    else
+        Plots.title!("Regions: $region | ENS: $(round(sum(shed))) MWh")
+    end
 
     return plt
 
