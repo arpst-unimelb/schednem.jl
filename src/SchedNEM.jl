@@ -8,10 +8,10 @@ module SchedNEM
     using PRAS
     import Tables
     import Plots
-
+    import HDF5
     
     include("utils.jl")
-    include("parser/core.jl")
+    include("files/core.jl")
     include("model/core.jl")
     include("update/core.jl")
     include("analysis/core.jl")

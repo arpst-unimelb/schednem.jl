@@ -8,7 +8,7 @@ Ramping: If ramping is activated and p_gen_initial is empty, set p_gen_initial t
 function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], initial_soc_genstor=[]; end_index::Int=0, 
     gon_initial=[], stup_before=[], shdw_before=[], p_gen_initial=[])
 
-    total_length, _ = get_params(sys)
+    total_length, _ = PRAS.get_params(sys)
 
     if total_length < start_index + m[:N] - 1
         end_index = total_length

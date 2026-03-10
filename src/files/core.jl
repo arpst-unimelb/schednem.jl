@@ -4,3 +4,6 @@ include("addCostData.jl")
 
 # Functions to get UC data from the input files and add to JuMP model
 include("getGenOperationData.jl")
+
+# Functions to save/read the schedule
+include("saveReadSchedule.jl")
