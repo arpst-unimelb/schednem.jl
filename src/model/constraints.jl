@@ -105,11 +105,11 @@ function add_constraints_storageConservation(m)
     if Ngenstors > 0
         # Generator-Storage conservation constraints
         @constraint(m, genstorConservationStart[gs=1:Ngenstors],
-            m[:e_genstor][gs,1] == m[:genstor_initial_soc][gs] * m[:genstor_carryover_eff][gs,1] + m[:p_genstor_charge][gs,1] * m[:genstor_charge_eff][gs,1] -
+            m[:e_genstor][gs,1] + m[:genstor_spillage][gs,1] == m[:genstor_initial_soc][gs] * m[:genstor_carryover_eff][gs,1] + m[:p_genstor_charge][gs,1] * m[:genstor_charge_eff][gs,1] -
             m[:p_genstor_discharge][gs,1] * m[:genstor_discharge_eff_inverse][gs,1] + m[:genstor_inflow][gs,1]
         )
         @constraint(m, genstorConservation[gs=1:Ngenstors, t=2:N],
-            m[:e_genstor][gs,t] == m[:e_genstor][gs,t-1] * m[:genstor_carryover_eff][gs,t] + m[:p_genstor_charge][gs,t] * m[:genstor_charge_eff][gs,t] -
+            m[:e_genstor][gs,t] + m[:genstor_spillage][gs,t] == m[:e_genstor][gs,t-1] * m[:genstor_carryover_eff][gs,t] + m[:p_genstor_charge][gs,t] * m[:genstor_charge_eff][gs,t] -
             m[:p_genstor_discharge][gs,t] * m[:genstor_discharge_eff_inverse][gs,t] + m[:genstor_inflow][gs,t]
         )
     end

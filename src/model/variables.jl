@@ -26,6 +26,9 @@ function add_variables(model; genData=nothing)
 
         # Add slack variable to have genstor target as soft constraint (to avoid infeasibility if target is not achievable)
         @variable(model, genstor_energy_target_slack[1:Ngenstors] >= 0)
+        
+        # Add genstor spillage variable to allow for excess inflow to be spilled (to avoid infeasibility if inflow exceeds discharge capacity)
+        @variable(model, genstor_spillage[1:Ngenstors, 1:N] >= 0)
     end
 
     if Ndrs > 0

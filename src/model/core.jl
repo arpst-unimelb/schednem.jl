@@ -25,7 +25,7 @@ function build_operation_model(sys;
     input_folder::String="", optimiser=HiGHS.Optimizer(),
     DER_parameters::Dict=get_DER_parameters(),
     genOpDetails=(uc=true, ramping=true, binary=false),
-    hydro_discharging_price::Float64=85.0,
+    hydro_discharging_price::Float64=8.58,
     storage_discharging_price::Float64=1.0,
     )
 
@@ -95,7 +95,7 @@ function build_operation_model(sys;
     m = add_constraint_powerBalance(m, sys)
     m = add_constraint_techLimits(m; genData=genData)
     m = add_constraints_storageConservation(m)
-    m = add_constraints_genstorEnergyTarget(m)
+    #m = add_constraints_genstorEnergyTarget(m)
 
     if genOpDetails.uc || genOpDetails.ramping
         add_constraints_rampLimits!(m, genData)
@@ -118,7 +118,13 @@ function build_operation_model(sys;
 
     return m
 end
+#%% =======================================================================================================================
+"""
+    run_operation_model(m, sys; output_file::String="", start_simulation::Int=1, end_simulation::Int=0)
 
+Runs the operation model with rolling horizon optimisation, updating the data from the PRAS system sys, and returns the resulting schedule as a SchedData object.
+
+"""
 function run_operation_model(m, sys; output_file::String="", start_simulation::Int=1, end_simulation::Int=0)
 
     # Check if schedule files already exist
@@ -138,8 +144,9 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
     end
 
     @info "Running operation model with rolling horizon optimisation..."
-    println("        Optimisation window: ", m[:N], "; Move forward step: ", m[:move_forward], "")
+    println("        Optimisation window: ", m[:N], "| Move forward step: ", m[:move_forward], "")
     println("        Timesteps: ", start_simulation, " to ", full_horizon)
+    println("        Ramping: ", m[:genOpDetails].ramping, " | UC: ", m[:genOpDetails].uc, " | Binary: ", m[:genOpDetails].binary)
 
     # Initialise an empty SchedData object to store the results
     res = SchedData(sys; N=full_horizon) 
@@ -166,7 +173,7 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
         #println("Optimising from time step ", start_idx, " to ", min(start_idx + m[:N] - 1, full_horizon))
 
         # Determine initial state of charge for storages and generator-storages
-        if start_idx != start_simulation
+        if start_idx > start_simulation # Not for fist time-step
             if Nstors > 0
                 initial_soc_stor = value.(m[:e_stor])[:,move_forward_step]
             end
@@ -222,7 +229,6 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
         end
 
     end
-
 
     if (output_file != "")
         @info "Saving schedule to file: " * output_file
