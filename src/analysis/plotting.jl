@@ -8,8 +8,6 @@ Function to plot the time series results of the optimization model for a specifi
 # Arguments
 - region: A vector of region indices to plot. If empty, all regions will be plotted.
 
-TODO: Add imports/exports
-
 """
 function plot_timeseries_results(m, sys; region::Vector=[], title="", legend=:outertopright)
 
@@ -20,20 +18,20 @@ function plot_timeseries_results(m, sys; region::Vector=[], title="", legend=:ou
     dem = sum(value.(m[:dem][region, :]), dims=1)[:] # Sum over all regions in the vector
 
     all_gens_in_region = vcat(collect.(sys.region_gen_idxs[region])...)
-    idx_pv = findall(n -> n in ["RoofPV", "LargePV"], sys.generators.categories[all_gens_in_region])
-    idx_w = findall(n -> n in ["Wind"], sys.generators.categories[all_gens_in_region])
-    ixd_gas = findall(n -> n in ["CCGT", "OCGT"], sys.generators.categories[all_gens_in_region])
+    idx_pv = intersect(findall(n -> n in ["RoofPV", "LargePV"], sys.generators.categories), all_gens_in_region)
+    idx_w = intersect(findall(n -> n in ["Wind"], sys.generators.categories), all_gens_in_region)
+    ixd_gas = intersect(findall(n -> n in ["CCGT", "OCGT", "Hydrogen-based gas turbines"], sys.generators.categories), all_gens_in_region)
     idx_other = setdiff(all_gens_in_region, vcat(idx_pv, idx_w, ixd_gas))
 
-    gen_pv = sum(value.(m[:p_gen][idx_pv, :]), dims=1)[:]
-    gen_w = sum(value.(m[:p_gen][idx_w, :]), dims=1)[:]
-    gen_gas = sum(value.(m[:p_gen][ixd_gas, :]), dims=1)[:]
-    gen_other = sum(value.(m[:p_gen][idx_other, :]), dims=1)[:]
+    gen_pv = sum(value.(m[:p_gen][idx_pv, :]); dims=1, init=0.0)[:]
+    gen_w = sum(value.(m[:p_gen][idx_w, :]); dims=1, init=0.0)[:]
+    gen_gas = sum(value.(m[:p_gen][ixd_gas, :]), dims=1, init=0.0)[:]
+    gen_other = sum(value.(m[:p_gen][idx_other, :]), dims=1, init=0.0)[:]
 
     if m[:Nstors] > 0
         all_stors_in_region = vcat(collect.(sys.region_stor_idxs[region])...)
-        stor_discharge = sum(value.(m[:p_stor_discharge][all_stors_in_region, :]), dims=1)[:]
-        stor_charge = sum(value.(m[:p_stor_charge][all_stors_in_region, :]), dims=1)[:]
+        stor_discharge = sum(value.(m[:p_stor_discharge][all_stors_in_region, :]); dims=1, init=0.0)[:]
+        stor_charge = sum(value.(m[:p_stor_charge][all_stors_in_region, :]); dims=1, init=0.0)[:]
     else
         stor_discharge = zeros(m[:N])
         stor_charge = zeros(m[:N])
@@ -41,8 +39,8 @@ function plot_timeseries_results(m, sys; region::Vector=[], title="", legend=:ou
 
     if m[:Ngenstors] > 0
         all_genstors_in_region = vcat(collect.(sys.region_genstor_idxs[region])...)
-        genstor_discharge = sum(value.(m[:p_genstor_discharge][all_genstors_in_region, :]), dims=1)[:]
-        genstor_charge = sum(value.(m[:p_genstor_charge][all_genstors_in_region, :]), dims=1)[:]
+        genstor_discharge = sum(value.(m[:p_genstor_discharge][all_genstors_in_region, :]); dims=1, init=0.0)[:]
+        genstor_charge = sum(value.(m[:p_genstor_charge][all_genstors_in_region, :]); dims=1, init=0.0)[:]
     else
         genstor_discharge = zeros(m[:N])
         genstor_charge = zeros(m[:N])

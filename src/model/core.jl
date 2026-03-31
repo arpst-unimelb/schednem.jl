@@ -1,4 +1,3 @@
-include("./DERparameters.jl")
 include("constraints.jl")
 include("variables.jl")
 include("objective.jl")
@@ -23,10 +22,10 @@ include("objective.jl")
 function build_operation_model(sys; 
     optimisation_window::Int=48, move_forward::Int=24, 
     input_folder::String="", optimiser=HiGHS.Optimizer(),
-    DER_parameters::Dict=get_DER_parameters(),
+    DER_parameters::Dict=PRASNEM.get_DER_parameters(),
     genOpDetails=(uc=true, ramping=true, binary=false),
     hydro_discharging_price::Float64=8.58,
-    storage_discharging_price::Float64=1.0,
+    storage_discharging_price::Float64=0.1,
     )
 
     # First check that the optimisation window is larger than the step size
@@ -95,7 +94,6 @@ function build_operation_model(sys;
     m = add_constraint_powerBalance(m, sys)
     m = add_constraint_techLimits(m; genData=genData)
     m = add_constraints_storageConservation(m)
-    #m = add_constraints_genstorEnergyTarget(m)
 
     if genOpDetails.uc || genOpDetails.ramping
         add_constraints_rampLimits!(m, genData)
@@ -114,7 +112,7 @@ function build_operation_model(sys;
     end
 
     # Initialise with first step
-    update_model_parameters!(m, sys, 1, zeros(m[:Nstors]), zeros(m[:Ngenstors]))
+    update_model_parameters!(m, sys, 1)
 
     return m
 end
@@ -144,7 +142,7 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
     end
 
     @info "Running operation model with rolling horizon optimisation..."
-    println("        Optimisation window: ", m[:N], "| Move forward step: ", m[:move_forward], "")
+    println("        Optimisation window: ", m[:N], " | Move forward step: ", m[:move_forward], "")
     println("        Timesteps: ", start_simulation, " to ", full_horizon)
     println("        Ramping: ", m[:genOpDetails].ramping, " | UC: ", m[:genOpDetails].uc, " | Binary: ", m[:genOpDetails].binary)
 
@@ -156,8 +154,8 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
     # Initial values
     Nstors = m[:Nstors];
     Ngenstors = m[:Ngenstors];
-    initial_soc_stor = zeros(Nstors)
-    initial_soc_genstor = zeros(Ngenstors)
+    initial_soc_stor = []
+    initial_soc_genstor = []
     p_gen_initial = []
     gon_initial = []
     stup_before = []
@@ -199,7 +197,7 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
         end
 
         # Update model parameters
-        update_model_parameters!(m, sys, start_idx, initial_soc_stor, initial_soc_genstor; 
+        update_model_parameters!(m, sys, start_idx; initial_soc_stor=initial_soc_stor, initial_soc_genstor=initial_soc_genstor, 
             gon_initial=gon_initial, stup_before=stup_before, shdw_before=shdw_before, p_gen_initial=p_gen_initial)
 
 

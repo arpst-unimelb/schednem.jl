@@ -23,7 +23,7 @@ struct SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}
     gon::Matrix{Int}
     stup::Matrix{Int}
     shdw::Matrix{Int}
-
+    
     p_gen::Matrix{Int}
     p_gen_max::Matrix{Int}
 

@@ -1,19 +1,23 @@
 """
+    update_model_parameters!(m, sys, start_index; end_index::Int=0, initial_soc_stor=[], initial_soc_genstor=[],
+        gon_initial=[], stup_before=[], shdw_before=[], p_gen_initial=[], gen_fail_before=[])
+
+- start_index and end_index are in terms of the time steps in sys, not the model indices.
 
 
 Ramping: If ramping is activated and p_gen_initial is empty, set p_gen_initial to 0.5 * the max capacity for all generators.
-
+Initial SOC: If initial_soc_stor or initial_soc_genstor are empty, set them to 0% and 50% of energy capacity as defaults, respectively.
 
 """
-function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], initial_soc_genstor=[]; end_index::Int=0, 
-    gon_initial=[], stup_before=[], shdw_before=[], p_gen_initial=[])
+function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial_soc_stor=[], initial_soc_genstor=[],
+    gon_initial=[], stup_before=[], shdw_before=[], p_gen_initial=[], gen_fail_before=[])
 
     total_length, _ = PRAS.get_params(sys)
 
     if total_length < start_index + m[:N] - 1
         end_index = total_length
         N = end_index - start_index + 1
-        @warn "Last optimisation window is shorter ($N) than optimisation_window ($(m[:N]))."
+        @debug "Last optimisation window is shorter ($N) than optimisation_window ($(m[:N])) - disabling the remaining time steps."
     else
         N = m[:N]
     end
@@ -53,6 +57,10 @@ function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], init
 
     # Update generator capacities
     set_parameter_value.(m[:gen_cap][:,t], sys.generators.capacity[:, idxs])
+    # If the end_index is less than the full window length, set the remaining generator capacity to zero
+    if end_index < start_index + m[:N] - 1
+        set_parameter_value.(m[:gen_cap][:,remaining_t], fill(0.0, size(m[:gen_cap][:,remaining_t])))
+    end
 
     # Update line capacities
     set_parameter_value.(m[:interface_limit_forward][:,t], sys.interfaces.limit_forward[:, idxs])
@@ -70,6 +78,10 @@ function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], init
         set_parameter_value.(m[:stor_discharge_eff_inverse][:,t], 1.0 ./ sys.storages.discharge_efficiency[:, idxs])
 
         # Update initial state of charge
+        if isempty(initial_soc_stor)
+            @debug "Initial state of charge for storages not provided. Setting to 0% of energy capacity as a default."
+            initial_soc_stor = fill(0.0, Nstors)
+        end
         set_parameter_value.(m[:stor_initial_soc][:], initial_soc_stor[:])
 
         # Set all the remaining times the charge/discharge capacity to zero
@@ -90,6 +102,10 @@ function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], init
         set_parameter_value.(m[:genstor_discharge_eff_inverse][:,t], 1.0 ./ sys.generatorstorages.discharge_efficiency[:, idxs])
 
         # Update initial state of charge
+        if isempty(initial_soc_genstor)
+            @debug "Initial state of charge for generator-storages not provided. Setting to 50% of energy capacity as a default."
+            initial_soc_genstor = sys.generatorstorages.energy_capacity[:,start_index] * 0.5 # Set initial state of charge to 50% of capacity as a default if not provided
+        end
         set_parameter_value.(m[:genstor_initial_soc][:], initial_soc_genstor[:])
 
         # Set all the remaining times the charge/discharge capacity to zero
@@ -104,7 +120,7 @@ function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], init
         set_parameter_value.(m[:drs_energy_interest][:,t], sys.demandresponses.borrowed_energy_interest[:, idxs])
 
         # Set all the remaining times the demand response parameters to zero
-        set_parameter_value.(m[:drs_borrow_cap][:,remaining_t], fill(0.0, size(m[:drs_borrow_cap][:,remaining_t])))
+        #set_parameter_value.(m[:drs_borrow_cap][:,remaining_t], sys.demandresponses.borrow_capacity[:, remaining_idxs]) # Keep the borrow capacity for the remaining time steps to keep the max energy constraint correct
         set_parameter_value.(m[:drs_payback_cap][:,remaining_t], fill(0.0, size(m[:drs_payback_cap][:,remaining_t])))
         set_parameter_value.(m[:drs_energy_interest][:,remaining_t], fill(-1.0, size(m[:drs_energy_interest][:,remaining_t])))
     end
@@ -114,20 +130,27 @@ function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], init
         if !isempty(gon_initial)
             set_parameter_value.(m[:gon_initial][:], gon_initial[:])
         else
-            #@warn "Initial generator on/off status not provided. Setting all generators to on at the first time step."
+            @debug "Initial generator on/off status not provided. Setting all generators to on at the first time step."
             set_parameter_value.(m[:gon_initial][:], fill(1.0, size(m[:gon_initial][:])))
         end
         if !isempty(stup_before)
             set_parameter_value.(m[:stup_before][:,:], stup_before[:,:])
         else
-            #@warn "Start-up indicator values not provided. Setting all to zero at the first time step."
+            @debug "Start-up indicator values not provided. Setting all to zero at the first time step."
             set_parameter_value.(m[:stup_before][:,:], fill(0.0, size(m[:stup_before][:,:])))
         end
         if !isempty(shdw_before)
             set_parameter_value.(m[:shdw_before][:,:], shdw_before[:,:])
         else
-            #@warn "Shut-down indicator values not provided. Setting all to zero at the first time step."
+            @debug "Shut-down indicator values not provided. Setting all to zero at the first time step."
             set_parameter_value.(m[:shdw_before][:,:], fill(0.0, size(m[:shdw_before][:,:])))
+        end
+
+        if !isempty(gen_fail_before)
+            set_parameter_value.(m[:gen_fail_before][:,:], gen_fail_before[:,:])
+        else
+            @debug "Ramping/UC slack parameter values not provided. Setting all to zero at the first time step (i.e., no failure)."
+            set_parameter_value.(m[:gen_fail_before][:,:], fill(0.0, size(m[:gen_fail_before][:,:])))
         end
     end
 
@@ -138,6 +161,14 @@ function update_model_parameters!(m, sys, start_index, initial_soc_stor=[], init
         else
             #@warn "Initial generation values not provided for ramping. Setting all to half the capacity before first time step."
             set_parameter_value.(m[:p_gen_initial][:], sys.generators.capacity[:, max(idxs[1]-1, 1)] * 0.5) # Set initial generation to 50% of capacity as a default
+        end
+    end
+
+    if m[:genOpDetails].uc || m[:genOpDetails].ramping
+        # If ramping of UC, reset ramping slack but then set the ramping slack to 1.0 at end to disable ramping constraint in last timestep
+        set_parameter_value.(m[:gen_fail], fill(0.0, size(m[:gen_fail])))
+        if length(remaining_t) > 0
+            set_parameter_value.(m[:gen_fail][:,remaining_t[1]], fill(1.0, size(m[:gen_fail][:,remaining_t[1]])))
         end
     end
 

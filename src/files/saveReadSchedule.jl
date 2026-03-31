@@ -5,6 +5,15 @@ Saving the SchedData to a file.
 
 """
 function save_schedule(schedule::SchedData, filename::String)
+
+    if isfile(filename)
+        @warn "File already exists and will be overwritten: $filename"
+    end
+
+    if !isdir(dirname(filename))
+        mkdir(dirname(filename))
+        @debug "Created directory: $(dirname(filename))"
+    end
     
     # Save the schedule to an HDF5 file
     HDF5.h5open(filename, "w") do f

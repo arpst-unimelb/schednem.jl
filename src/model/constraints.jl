@@ -18,14 +18,14 @@ function add_constraint_powerBalance(m, sys)
     @constraint(m, # For each region and time step
         powerBalance[r=1:Nregions, t=1:N],
             sum(m[:p_gen][g,t] for g in sys.region_gen_idxs[r]) +
-            sum(m[:p_genstor_discharge][gs,t] for gs in sys.region_genstor_idxs[r]; init = zero(1)) +
+            sum((m[:p_interface_forward][l,t] - m[:p_interface_backward][l,t]) * m[:connection_matrix][l,r] for l in 1:Ninterfaces) +
             sum(m[:p_stor_discharge][s,t] for s in sys.region_stor_idxs[r]; init = zero(1)) +
-            sum(m[:p_borrow_drs][drs,t] for drs in sys.region_dr_idxs[r] if (m[:Ndrs] > 0); init = zero(1)) +
-            sum((m[:p_interface_forward][l,t] - m[:p_interface_backward][l,t]) * m[:connection_matrix][l,r] for l in 1:Ninterfaces) ==
-            m[:dem][r,t] - m[:load_shedding][r,t] +
-            sum(m[:p_payback_drs][drs,t] for drs in sys.region_dr_idxs[r] if (m[:Ndrs] > 0); init = zero(1)) +
-            sum(m[:p_stor_charge][s,t] for s in sys.region_stor_idxs[r]; init = zero(1)) +
-            sum(m[:p_genstor_charge][gs,t] for gs in sys.region_genstor_idxs[r]; init = zero(1))
+            sum(m[:p_genstor_discharge][gs,t] for gs in sys.region_genstor_idxs[r]; init = zero(1)) +
+            sum(m[:p_borrow_drs][drs,t] for drs in sys.region_dr_idxs[r] if (m[:Ndrs] > 0); init = zero(1)) -
+            sum(m[:p_stor_charge][s,t] for s in sys.region_stor_idxs[r]; init = zero(1)) -
+            sum(m[:p_genstor_charge][gs,t] for gs in sys.region_genstor_idxs[r]; init = zero(1)) -
+            sum(m[:p_payback_drs][drs,t] for drs in sys.region_dr_idxs[r] if (m[:Ndrs] > 0); init = zero(1)) ==
+            m[:dem][r,t] - m[:load_shedding][r,t]
     )
     return m
 end
@@ -39,6 +39,7 @@ function add_constraint_techLimits(m; genData=nothing)
     Ninterfaces = m[:Ninterfaces]
     Nstors = m[:Nstors]
     Ngenstors = m[:Ngenstors]
+    Ndrs = m[:Ndrs]
 
     # Generator Limits
     if m[:genOpDetails].uc
@@ -70,6 +71,13 @@ function add_constraint_techLimits(m; genData=nothing)
         @constraint(m, genstorChargeLimits[gs=1:Ngenstors, t=1:N], m[:p_genstor_charge][gs,t] <= m[:genstor_charge_cap][gs,t])
         @constraint(m, genstorDischargeLimits[gs=1:Ngenstors, t=1:N], m[:p_genstor_discharge][gs,t] <= m[:genstor_discharge_cap][gs,t])
         @constraint(m, genstorEnergyLimitsUp[gs=1:Ngenstors, t=1:N], m[:e_genstor][gs,t] <= m[:genstor_energy_cap][gs,t])
+    end
+
+    if Ndrs > 0 
+        # Demand response limits
+        @constraint(m, drsBorrowLimits[drs=1:Ndrs, t=1:N], m[:p_borrow_drs][drs,t] <= m[:drs_borrow_cap][drs,t])
+        @constraint(m, drsPaybackLimits[drs=1:Ndrs, t=1:N], m[:p_payback_drs][drs,t] <= m[:drs_payback_cap][drs,t])
+        @constraint(m, drsEnergyLimits[drs=1:Ndrs, t=1:N], m[:e_drs][drs,t] <= m[:drs_energy_cap][drs,t])
     end
 
     # Interface limits
@@ -145,11 +153,6 @@ function add_constraints_demandResponse(m, DER_params)
         return m # If there are no demand response units, just return the model without adding any constraints
     end
 
-    # Demand response capacity limits
-    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
-    @constraint(m, drsBorrowLimits[drs=1:Ndrs, t=1:N], m[:p_borrow_drs][drs,t] <= m[:drs_borrow_cap][drs,t])
-    @constraint(m, drsPaybackLimits[drs=1:Ndrs, t=1:N], m[:p_payback_drs][drs,t] <= m[:drs_payback_cap][drs,t])
-
     # Add limit if payback before borrowing is not allowed
     if !DER_params["DSP_payback_before_borrowing"]
         @constraint(m, drsPaybackBeforeBorrowingDSP[drs=drs_idxs_DSP, t=1:N], m[:e_drs][drs,t] >= 0.0)
@@ -172,36 +175,6 @@ function add_constraints_demandResponse(m, DER_params)
 
     return m
 end
-
-"""
-    add_constraints_demandResponse_paybackTime(m, DER_params)
-
-"""
-function add_constraints_demandResponse_paybackTime(m, DER_params)
-
-    # Extract system parameters
-    N = m[:N]
-
-    # First for DSP
-    if DER_params["DSP_flexibility"] && (DER_params["DSP_payback_window"] > 0) && (DER_params["DSP_payback_window"] < N) && (DER_params["DSP_interest"] > -1.0)
-        drs_idxs_DSP = m[:drs_idxs_DSP]
-        window = DER_params["DSP_payback_window"]
-        @info "Adding demand response payback time constraints for DSP units with payback window of $(window) hours."
-        MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
-        @constraint(m, drsPaybackTimeDSP[drs=drs_idxs_DSP, t=window:N], sum(m[:p_payback_drs][drs,tau] for tau=t-window+1:t) >= m[:p_borrow_drs][drs,t-window+1] * (1.0 + m[:drs_energy_interest][drs,t-window+1]))
-    end
-
-    if DER_params["EV_charge_flexibility"] && (DER_params["EV_payback_window"] > 0) && (DER_params["EV_payback_window"] < N) && (DER_params["EV_interest"] > -1.0)
-        drs_idxs_EV = m[:drs_idxs_EV]
-        window = DER_params["EV_payback_window"]
-        @info "Adding demand response payback time constraints for EV units with payback window of $(window) hours."
-        MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
-        @constraint(m, drsPaybackTimeEV[drs=drs_idxs_EV, t=window:N], sum(m[:p_payback_drs][drs,tau] for tau=t-window+1:t) >= m[:p_borrow_drs][drs,t-window+1] * (1.0 + m[:drs_energy_interest][drs,t-window+1]))
-    end
-
-    return m
-end
-
 
 """
     add_constraints_demandResponse_maxEnergy(m, DER_params)
@@ -245,7 +218,10 @@ function add_constraints_demandResponse_maxEnergy(m, DER_params)
                 end
             end
 
-            @info "Adding max energy constraints for DSP units $idxs_DSP_drs with price bands $prices_drs."
+            if !isempty(idxs_DSP_drs)
+                prices_print = unique([prices_drs[i] == m[:VoLL_min] ? "Rel. Resp." : string(prices_drs[i]) for i in 1:length(prices_drs)])
+                 @info "Adding max energy constraints ($maxEnergyFac h) for DSP units $idxs_DSP_drs in price bands $prices_print."
+            end
             MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
             @constraint(m, drsMaxEnergyDSP[i=idxs_DSP_drs, T=collect(window:window:N)], sum(m[:p_borrow_drs][i,t] for t=T-window+1:T)  <= maxEnergyFac / window * sum(m[:drs_borrow_cap][i,t] for t=T-window+1:T))
         end
@@ -270,83 +246,30 @@ function add_constraints_demandResponse_maxEnergy(m, DER_params)
 end
 
 
-#%% ========================================================================================================================
 """
-    add_constraints_genstorEnergyTarget(m, index, storage_energy_level, genstor_energy_level)
+    add_constraints_demandResponse_paybackTime(m, DER_params)
 
 """
-function add_constraints_genstorEnergyTarget(m)
+function add_constraints_demandResponse_paybackTime(m, DER_params)
 
     # Extract system parameters
     N = m[:N]
-    Ngenstors = m[:Ngenstors]
 
-    # These constraints are added as constraints (not bounds)
-    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
-
-    # Generator-Storage energy target constraint (use inequality here to allow for infeasibility and penalize with slack variable)
-    @constraint(m, genstorEnergyTarget[gs=1:Ngenstors],
-        m[:e_genstor][gs,N] >= m[:genstor_energy_target][gs] - m[:genstor_energy_target_slack][gs]
-    )
-
-    return m
-end
-
-
-#%% ========================================================================================================================
-"""
-    remove_constraints_EnergyFixed(m)
-
-Removes the constraints that fix storage energy levels at a certain time step.
-"""
-function remove_constraints_EnergyFixed(m)
-
-    # Extract system parameters
-    Nstors = m[:Nstors]
-    Ngenstors = m[:Ngenstors]
-
-    if Nstors > 0
-        set_lower_bound.(m[:e_stor], 0.0)
-        set_lower_bound.(m[:e_stor][:,index], 0.0)
-    end
-    for gs in 1:Ngenstors
-        set_lower_bound.(m[:e_genstor][gs,:], 0.0)
+    # First for DSP
+    if DER_params["DSP_flexibility"] && (DER_params["DSP_payback_window"] > 0) && (DER_params["DSP_payback_window"] < N) && (DER_params["DSP_interest"] > -1.0)
+        drs_idxs_DSP = m[:drs_idxs_DSP]
+        window = DER_params["DSP_payback_window"]
+        @info "Adding demand response payback time constraints for DSP units with payback window of $(window) hours."
+        MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+        @constraint(m, drsPaybackTimeDSP[drs=drs_idxs_DSP, t=window:N], sum(m[:p_payback_drs][drs,tau] for tau=t-window+1:t) >= m[:p_borrow_drs][drs,t-window+1] * (1.0 + m[:drs_energy_interest][drs,t-window+1]))
     end
 
-    return m
-end
-
-
-"""
-    add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level)
-
-# Inputs
-- `m`: The optimization model to which the constraints will be added.
-- `index`: The time step index after which the storage energy levels are to be fixed. (energy is always at the end of the time step)
-- `storage_energy_level`: A vector of length Nstors specifying the fixed energy level for each storage after the specified time step index.
-- `genstor_energy_level`: A vector of length Ngenstors specifying the fixed energy level for each generator-storage after the specified time step index.
-- `tolerance`: A non-negative scalar specifying the tolerance for fixing the energy levels. The constraints will ensure that the energy levels are greater than or equal to the specified levels minus this tolerance.
-
-# Description
-
-
-
-
-"""
-function add_constraints_EnergyFixed(m, index, storage_energy_level, genstor_energy_level; tolerance=0.0)
-
-    # Extract system parameters
-    Nstors = m[:Nstors]
-    Ngenstors = m[:Ngenstors]
-
-    # Storage energy level fixed constraints
-    if Nstors > 0
-        set_lower_bound.(m[:e_stor], 0.0) # First set all the lower bounds to zero to avoid errors when adding the constraints
-        set_lower_bound.(m[:e_stor][:,index], storage_energy_level[:] .- tolerance)
-    end
-    for gs in 1:Ngenstors
-        set_lower_bound.(m[:e_genstor][gs,:], 0.0) # First set all the lower bounds to zero to avoid errors when adding the constraints
-        set_lower_bound.(m[:e_genstor][gs,index], genstor_energy_level[gs] - tolerance)
+    if DER_params["EV_charge_flexibility"] && (DER_params["EV_payback_window"] > 0) && (DER_params["EV_payback_window"] < N) && (DER_params["EV_interest"] > -1.0)
+        drs_idxs_EV = m[:drs_idxs_EV]
+        window = DER_params["EV_payback_window"]
+        @info "Adding demand response payback time constraints for EV units with payback window of $(window) hours."
+        MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+        @constraint(m, drsPaybackTimeEV[drs=drs_idxs_EV, t=window:N], sum(m[:p_payback_drs][drs,tau] for tau=t-window+1:t) >= m[:p_borrow_drs][drs,t-window+1] * (1.0 + m[:drs_energy_interest][drs,t-window+1]))
     end
 
     return m
@@ -372,7 +295,7 @@ function add_constraints_disableVPP(m, sys)
 
         # These constraints are added as bounds
         MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
-        fix(m[:e_stor][idxs_vpp,:], 0.0)
+        fix.(m[:e_stor][idxs_vpp,:], 0.0; force=true)
     end
 
     return m
@@ -409,7 +332,7 @@ function add_constraints_rampLimits!(model, genData)
     # Ramp down limits (with increased limit for shut-down)
     condition_ramp_down = genData.rdw[id_gens] .< genData.pmax[id_gens] # Only add ramping constraints for generators with constraining ramping limits (i.e., rdw < pmax)
     @constraint(model, rampDown[g=1:Ngens, t=1:N; model[:genOpDetails].ramping && condition_ramp_down[g]],
-        (t == 1 ? model[:p_gen_initial][g] : model[:p_gen][g,t-1]) - model[:p_gen][g,t] <= genData.rdw[id_gens[g]] + (model[:genOpDetails].uc ? model[:shdw][g,t] * genData.pmin[id_gens[g]] : 0.0))
+        (t == 1 ? model[:p_gen_initial][g] : model[:p_gen][g,t-1]) - model[:p_gen][g,t] - model[:gen_fail][g,t] * genData.pmax[id_gens[g]] <= genData.rdw[id_gens[g]] + (model[:genOpDetails].uc ? model[:shdw][g,t] * genData.pmin[id_gens[g]] : 0.0))
 
     return model
 end
@@ -428,6 +351,7 @@ function add_constraints_commitment!(model, genData)
     # Only add commitment logic constraints for generators with minimum up/down time requirements
     condition_commitment = (genData.down_time[id_gens] .> 0) .| (genData.up_time[id_gens] .> 0) .| (genData.pmin[id_gens] .> 0)
 
+    MOI.set(model, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
     # Start-up and shut-down indicators should reflect changes in commitment status
     @constraint(model, stup_shdw[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_commitment[g]],
         model[:stup][g,t] - model[:shdw][g,t] == model[:gon][g,t] - (t == 1 ? model[:gon_initial][g] : model[:gon][g,t-1])) 
@@ -435,6 +359,13 @@ function add_constraints_commitment!(model, genData)
     # Cannot start up and shut down at the same time
     @constraint(model, stup_shdw_check[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_commitment[g]],
         model[:stup][g,t] + model[:shdw][g,t] <= 1.0) 
+    
+    # For all the other generators: Fix gon to 1 (i.e., always on) and fix start-up and shut-down indicators to 0 (i.e., no start-up or shut-down)
+    condition_not_commitment = .!condition_commitment
+
+    MOI.set(model, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
+    @constraint(model, gon_fix[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_not_commitment[g]],
+        model[:gon][g,t] == 1.0)
         
     return model
 end
@@ -457,7 +388,7 @@ function add_constraints_minUpDownTime!(model, genData)
     # Minimum up time constraints
     condition_min_up = genData.up_time[id_gens] .> 0 # Only add minimum up time constraints for generators with minimum up time requirements
     @constraint(model, minUpTime[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_min_up[g]],
-        model[:gon][g,t] >= sum(model[:stup][g,tau] for tau = max(1, t - ceil(Int, genData.up_time[id_gens[g]])+1):t) + sum(model[:stup_before][g, N-ceil(Int, genData.up_time[id_gens[g]])+t+1:N])) # Include start-up before the start of the optimisation horizon (if needed)
+        model[:gon][g,t] >= sum(model[:stup][g,tau] - model[:gen_fail][g,tau] for tau = max(1, t - ceil(Int, genData.up_time[id_gens[g]])+1):t) + sum(model[:stup_before][g,tau] - model[:gen_fail_before][g,tau]  for tau = N-ceil(Int, genData.up_time[id_gens[g]])+t+1:N)) # Include start-up before the start of the optimisation horizon (if needed)
 
     # Minimum down time constraints
     condition_min_down = genData.down_time[id_gens] .> 0 # Only add minimum down time constraints for generators with minimum down time requirements

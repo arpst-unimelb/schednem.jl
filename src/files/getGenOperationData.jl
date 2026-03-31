@@ -4,7 +4,7 @@
 Note: Start up time and shut down time are not considered in the current model.
 
 """
-function getGenOperationData(input_folder::String; fiveMinsInTimestep::Int = 12)
+function getGenOperationData(input_folder::String; MinsInTimestep::Int = 60)
 
     data = CSV.read(joinpath(input_folder, "Generator.csv"), DataFrames.DataFrame)
 
@@ -21,11 +21,11 @@ function getGenOperationData(input_folder::String; fiveMinsInTimestep::Int = 12)
     pmax_by_id = fill(0.0, maxid)
     pmax_by_id[data.id_gen] = data.pmax
 
-    rup_by_id = fill(9999.9 * fiveMinsInTimestep, maxid)
-    rup_by_id[data.id_gen] = data.rup * fiveMinsInTimestep
+    rup_by_id = fill(9999.9 * MinsInTimestep, maxid)
+    rup_by_id[data.id_gen] = data.rup * MinsInTimestep
 
-    rdw_by_id = fill(9999.9 * fiveMinsInTimestep, maxid)
-    rdw_by_id[data.id_gen] = data.rdw * fiveMinsInTimestep
+    rdw_by_id = fill(9999.9 * MinsInTimestep, maxid)
+    rdw_by_id[data.id_gen] = data.rdw * MinsInTimestep
 
     down_time_by_id = fill(0.0, maxid)
     down_time_by_id[data.id_gen] = data.down_time

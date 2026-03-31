@@ -23,9 +23,6 @@ function add_variables(model; genData=nothing)
         @variable(model, p_genstor_charge[1:Ngenstors, 1:N] >= 0)
         @variable(model, p_genstor_discharge[1:Ngenstors, 1:N] >= 0)
         @variable(model, e_genstor[1:Ngenstors, 1:N] >= 0)
-
-        # Add slack variable to have genstor target as soft constraint (to avoid infeasibility if target is not achievable)
-        @variable(model, genstor_energy_target_slack[1:Ngenstors] >= 0)
         
         # Add genstor spillage variable to allow for excess inflow to be spilled (to avoid infeasibility if inflow exceeds discharge capacity)
         @variable(model, genstor_spillage[1:Ngenstors, 1:N] >= 0)
@@ -42,7 +39,9 @@ function add_variables(model; genData=nothing)
 
     @variable(model, load_shedding[1:Nregions, 1:N] >= 0)
 
+    # TODO: Reduce the number of variables to only for those generators needed!!
     if model[:genOpDetails].uc
+        #condition_commitment = findall((genData.down_time[id_gens] .> 0) .| (genData.up_time[id_gens] .> 0) .| (genData.pmin[id_gens] .> 0))
         if model[:genOpDetails].binary
              # Generator status variables (binary)
             @variable(model, gon[1:Ngens, t=1:N], Bin) # Generator on/off status variable 
@@ -87,7 +86,6 @@ function add_variables(model; genData=nothing)
             genstor_carryover_eff[1:Ngenstors, 1:N] in Parameter(1.0)
             genstor_charge_eff[1:Ngenstors, 1:N] in Parameter(1.0)
             genstor_discharge_eff_inverse[1:Ngenstors, 1:N] in Parameter(1.0)
-            genstor_energy_target[1:Ngenstors] in Parameter(0.0)
         end)
     end
 
@@ -105,12 +103,19 @@ function add_variables(model; genData=nothing)
             gon_initial[1:Ngens] in Parameter(1.0) # Set initial value to on for all generators
             stup_before[1:Ngens, 1:N] in Parameter(0.0) # Initial setup: No start-up before so that shutdown can happen in first time-step if needed
             shdw_before[1:Ngens, 1:N] in Parameter(0.0)
+            gen_fail_before[1:Ngens, 1:N] in Parameter(0.0) # Ramping/UC slack parameter before the start of the optimisation
         end)
     end
 
     if model[:genOpDetails].ramping
         @variables(model, begin
             p_gen_initial[1:Ngens] in Parameter.(genData.pmin[model[:id_gens]])
+        end)
+    end
+
+    if model[:genOpDetails].ramping || model[:genOpDetails].uc
+        @variables(model, begin
+            gen_fail[1:Ngens, 1:N] in Parameter(0.0) # Ramping/UC slack parameter to set to 1 if generator is failing to disable ramping constraint
         end)
     end
 

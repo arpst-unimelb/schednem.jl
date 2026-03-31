@@ -1,7 +1,14 @@
-#%% ========================================================================================================================
+"""
+    add_objective(m, sys; hydro_discharging_price=8.58, storage_discharging_price=0.1, genData=nothing)
+        
+        
+
+
+"""
 function add_objective(m, sys; 
     hydro_discharging_price=8.58, 
-    storage_discharging_price=1.0, 
+    storage_discharging_price=0.1,
+    transmission_flow_penalty=0.1, 
     genData=nothing)
 
     # Extract system parameters
@@ -63,19 +70,7 @@ function add_objective(m, sys;
 
     # Operational costs
     @expression(m, operating_cost, sum(m[:p_gen][g,t] * gens_cost[g] for g=1:Ngens, t=1:N))
-    @expression(m, operating_cost_drs, sum(m[:p_borrow_drs][drs,t] * drs_cost[drs] for drs=1:Ndrs, t=1:N; init=zero(1)))
-    @expression(m, load_shedding_cost, sum(m[:load_shedding][r,t] * (voll_max - (voll_max - voll_min)/(N-1) * (t-1)) for r=1:Nregions, t=1:N))
-    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * storage_discharging_price for s=1:Nstors, t=1:N; init=zero(1)))
-    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * hydro_discharging_price for gs=1:Ngenstors, t=1:N; init=zero(1)))
-    
-    # Hydro penalties
-    #@expression(m, genstorage_energy_incentive, - sum(m[:e_genstor][gs,N] * genstor_energy_incentive_price for gs=1:Ngenstors; init=zero(1)))
-    @expression(m, genstorage_energy_target_penalty, sum(m[:genstor_energy_target_slack][gs] * voll_min * 0.99 for gs=1:Ngenstors; init=zero(1)))
-    @expression(m, genstorage_spillage_penalty, sum(m[:genstor_spillage][gs,t] * voll_min * 0.98 for gs=1:Ngenstors, t=1:N; init=zero(1)))
-    
-    # Transmission flow penalty to avoid excessive usage for no cost benefit
-    @expression(m, flow_penalty, sum((m[:p_interface_forward][l,t] + m[:p_interface_backward][l,t]) * 0.1 for l=1:Ninterfaces, t=1:N))
-    
+
     # Unit commitment costs
     if m[:genOpDetails].uc
         @expression(m, startup_cost, sum(m[:stup][g,t] * genData.start_up_cost[m[:id_gens][g]] for g=1:Ngens, t=1:N; init=zero(1)))
@@ -83,8 +78,22 @@ function add_objective(m, sys;
         operating_cost += startup_cost + shutdown_cost
     end
 
+    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * storage_discharging_price for s=1:Nstors, t=1:N; init=zero(1)))
+    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * hydro_discharging_price for gs=1:Ngenstors, t=1:N; init=zero(1)))
+    @expression(m, genstorage_spillage_penalty, sum(m[:genstor_spillage][gs,t] * voll_min * 0.98 for gs=1:Ngenstors, t=1:N; init=zero(1)))
+    
+    
+    @expression(m, operating_cost_drs, sum(m[:p_borrow_drs][drs,t] * drs_cost[drs] for drs=1:Ndrs, t=1:N; init=zero(1)))
+    @expression(m, load_shedding_cost, sum(m[:load_shedding][r,t] * (voll_max - (voll_max - voll_min)/(N-1) * (t-1)) for r=1:Nregions, t=1:N))
+    
+    # Transmission flow penalty to avoid excessive usage for low cost benefit
+    @expression(m, flow_penalty, sum((m[:p_interface_forward][l,t] + m[:p_interface_backward][l,t]) * transmission_flow_penalty for l=1:Ninterfaces, t=1:N))
+
     # Objective: Minimize operating cost
-    @objective(m, Min, operating_cost + operating_cost_drs + load_shedding_cost + storage_discharging_cost + genstorage_discharging_cost + flow_penalty + genstorage_energy_target_penalty + genstorage_spillage_penalty)
+    @objective(m, Min, operating_cost +
+        storage_discharging_cost + genstorage_discharging_cost + 
+        operating_cost_drs + load_shedding_cost +
+        flow_penalty + genstorage_spillage_penalty)
 
     return m
 end
