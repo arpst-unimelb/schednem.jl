@@ -23,9 +23,10 @@ function addReserve!(sys; load_requirements_area=[890, 705, 600, 168, 251])
     end
 
     @debug "Reserve requirements per region (MW): $(round.(Int, reserve_requirements_region)). Adding to system load."
+    sys.attrs["demand_increased_by"] = string(round.(Int, reserve_requirements_region))
 
     for r in 1:length(sys.regions.names)
-        sys_temp.regions.load[r, :] .+= round(Int, reserve_requirements_region[r])
+        sys.regions.load[r, :] .+= round(Int, reserve_requirements_region[r])
     end
 
     return sys
