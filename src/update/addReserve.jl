@@ -16,8 +16,6 @@ function addReserve!(sys; load_requirements_area=[890, 705, 600, 168, 251])
 
     area_region_map = PRASNEM.get_region_area_map("ISP24"; rev=true)
 
-    Dict(1 => [1,2,3,4], 2 => [5,6,7,8], 3 => [9], 4 => [10], 5 => [11,12])
-
     reserve_requirements_region = zeros(length(sys.regions.names))
     for (area, regions) in area_region_map
         max_load = [maximum(sys.regions.load[r, :]) for r in regions]
@@ -25,6 +23,10 @@ function addReserve!(sys; load_requirements_area=[890, 705, 600, 168, 251])
     end
 
     @debug "Reserve requirements per region (MW): $(round.(Int, reserve_requirements_region)). Adding to system load."
+
+    for r in 1:length(sys.regions.names)
+        sys_temp.regions.load[r, :] .+= round(Int, reserve_requirements_region[r])
+    end
 
     return sys
 end
