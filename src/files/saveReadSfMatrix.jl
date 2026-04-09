@@ -37,3 +37,26 @@ function readSfMatrix(filename)
     end
     return SfMatrixOut
 end
+
+# ================================================================
+# Additional functions to calculate adequacy metrics from the sparse failure matrix file directly, without needing to create the full matrix.
+"""
+    eensFromSfMatrix(filename)
+Calculates the expected energy not supplied (EENS) from a sparse failure matrix CSV file (saved with saveSfMatrix).
+"""
+function eensFromSfMatrix(filename)
+    df = CSV.read(filename, DataFrames.DataFrame)
+    return sum(df.V) ./ maximum(df.K)
+end
+"""
+    ensFromSfMatrix(filename)
+Calculates the energy not supplied (ENS) for each sample from a sparse failure matrix CSV file (saved with saveSfMatrix). Returns a vector of ENS values for each sample.
+"""
+function ensFromSfMatrix(filename)
+    df = CSV.read(filename, DataFrames.DataFrame)
+    ens = zeros(maximum(df.K))
+    for group in groupby(df, :K)
+        ens[group.K[1]] = sum(group.V)
+    end
+    return ens
+end
