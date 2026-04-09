@@ -8,3 +8,4 @@ include("getGenOperationData.jl")
 # Functions to save/read the schedule
 include("dataStruct.jl")
 include("saveReadSchedule.jl")
+include("saveReadSfMatrix.jl")
