@@ -33,8 +33,8 @@ function build_operation_model(sys;
         @error "The optimisation window must be larger than or equal to the move forward step size."
     end
 
-    if (optimisation_window - move_forward < 24) && (genOpDetails.uc)
-        @warn "The optimisation window might not be long enough to fully capture the generator operation details (e.g., minimum up/down times) with the selected move forward step size."
+    if (optimisation_window < 24 || move_forward < 24) && (genOpDetails.uc)
+        @warn "The optimisation window and/or move forward step size might not be long enough to fully capture the generator operation details (e.g., minimum up/down times)."
     end
 
     sys = addVollData(sys)
@@ -213,6 +213,10 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
         # Extract results for full the current optimisation window
         end_idx = min(start_idx + m[:N] - 1, full_horizon)
         time_steps = end_idx - start_idx + 1
+
+        if sum(value.(m[:load_shedding])) > 0
+            @warn "Load shedding is occurring in simulation $start_idx-$end_idx: $(sum(value.(m[:load_shedding]))) MWh."
+        end
 
         res_window = get_results(m)
 
