@@ -13,7 +13,7 @@ Important points:
 
 
 Parameters:
-- 'df_expectation': The DataFrame with the critical events and their details (e.g. from PRASNEM.get_all_event_details).
+- 'df_expectation': The DataFrame with the critical events and their details (e.g. from PRASNEM.get_all_event_details) or a string with the path to the CSV file containing the SfMatrix results.
 - 'sys': The PRAS system object containing the system data and parameters.
 - 'res_input': The originial schedule from SchedNEM.
 - 'genAvSamples'/ 'lineAvSamples': PRAS output matrices (e.g. genAv.available) containing the generator and line availability for each sample and time step.
@@ -38,6 +38,10 @@ function reoptimise(df_expectation, sys, res_input, genAvSamples, lineAvSamples;
 
     @info "Reoptimising all events with a horizon of > $default_horizon hours to assess system response."
 
+    if !(typeof(df_expectation) <: DataFrames.DataFrame) && !(typeof(df_expectation) <: String)
+        error("df_expectation should be either a DataFrame or a string with the path to the CSV file containing the expectation dispatch details.")
+    end
+
     if optimiser_name == "HiGHS"
         optimiser = HiGHS.Optimizer()
     elseif optimiser_name == "Gurobi"
@@ -47,7 +51,6 @@ function reoptimise(df_expectation, sys, res_input, genAvSamples, lineAvSamples;
     end
 
     # Add an ID column for easier references
-    df_expectation.id = 1:DataFrames.nrow(df_expectation)
     N = length(sys.timestamps)
     Nregions = length(sys.regions.names)
     Nsamples = size(genAvSamples, 3)

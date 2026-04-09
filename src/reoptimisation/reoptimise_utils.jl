@@ -44,6 +44,11 @@ Function to calculate the simulation windows for reoptimisation for each sample.
 """
 function get_all_simulation_windows(df_results, N, Nsamples, statechange_times; default_horizon::Int=24, min_time_after_event::Int=5)
 
+    # If df_results is a string, use the get_all_events function to create the dataframe.
+    if typeof(df_results) <: String
+        df_results = PRASNEM.get_all_events(df_results)
+    end
+
     all_simulation_times = [(start_idxs=[], end_idxs=[], sim_time=[]) for _ in 1:Nsamples]
     for group in DataFrames.groupby(df_results, :sample)
         sample = group.sample[1]
