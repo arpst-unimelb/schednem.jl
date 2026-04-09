@@ -3,5 +3,4 @@
 include("updateGenCapacity.jl")
 include("updateLineCapacity.jl")
 include("updateParameters.jl")
-include("fixVariables.jl")
 include("addReserve.jl")
