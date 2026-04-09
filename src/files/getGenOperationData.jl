@@ -28,7 +28,7 @@ function getGenOperationData(input_folder::String; MinsInTimestep::Int = 60)
     rdw_by_id[data.id_gen] = data.rdw * MinsInTimestep
 
     down_time_by_id = fill(0.0, maxid)
-    down_time_by_id[data.id_gen] = data.down_time > 0 ? data.down_time : data.up_time # If down_time is not provided, use up_time as a proxy
+    down_time_by_id[data.id_gen] = [(data.down_time[i] > 0) ? data.down_time[i] : data.up_time[i] for i in 1:length(data.id_gen)] # If down_time is not provided, use up_time as a proxy
 
     up_time_by_id = fill(0.0, maxid)
     up_time_by_id[data.id_gen] = data.up_time
