@@ -14,7 +14,7 @@ function addReserve!(sys; load_requirements_area=[890, 705, 600, 168, 251])
     #TAS	168
     #VIC	600
 
-    area_region_map = PRASNEM.get_region_area_map("ISP24"; rev=true)
+    area_region_map = PRASNEM.get_region_area_map(; rev=true)
 
     reserve_requirements_region = zeros(length(sys.regions.names))
     for (area, regions) in area_region_map
