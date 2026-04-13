@@ -1,12 +1,12 @@
 """
-    add_objective(m, sys; hydro_discharging_price=8.58, storage_discharging_price=0.1, genData=nothing)
+    add_objective(m, sys; hydro_parameters, storage_discharging_price=0.1, genData=nothing)
         
         
 
 
 """
 function add_objective(m, sys; 
-    hydro_discharging_price=8.58, 
+    hydro_parameters=PRASNEM.get_hydro_parameters(),
     storage_discharging_price=0.1,
     transmission_flow_penalty=0.1, 
     genData=nothing)
@@ -79,7 +79,7 @@ function add_objective(m, sys;
     end
 
     @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * storage_discharging_price for s=1:Nstors, t=1:N; init=zero(1)))
-    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * hydro_discharging_price for gs=1:Ngenstors, t=1:N; init=zero(1)))
+    @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * hydro_parameters["hydro_discharging_cost"] for gs=1:Ngenstors, t=1:N; init=zero(1)))
     @expression(m, genstorage_spillage_penalty, sum(m[:genstor_spillage][gs,t] * voll_min * 0.98 for gs=1:Ngenstors, t=1:N; init=zero(1)))
     
     

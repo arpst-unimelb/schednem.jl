@@ -24,7 +24,7 @@ function build_operation_model(sys;
     input_folder::String="", optimiser=HiGHS.Optimizer(),
     DER_parameters::Dict=PRASNEM.get_DER_parameters(),
     genOpDetails=(uc=true, ramping=true, binary=false),
-    hydro_discharging_price::Float64=8.58,
+    hydro_parameters=PRASNEM.get_hydro_parameters(),
     storage_discharging_price::Float64=0.1,
     )
 
@@ -88,7 +88,7 @@ function build_operation_model(sys;
     m = add_variables(m; genData)
 
     # Add objective function
-    m = add_objective(m, sys; hydro_discharging_price=hydro_discharging_price, storage_discharging_price=storage_discharging_price, genData=genData)
+    m = add_objective(m, sys; hydro_parameters=hydro_parameters, storage_discharging_price=storage_discharging_price, genData=genData)
 
     # Add constraints
     m = add_constraint_powerBalance(m, sys)
