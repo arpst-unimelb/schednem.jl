@@ -103,8 +103,8 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
 
         # Update initial state of charge
         if isempty(initial_soc_genstor)
-            @debug "Initial state of charge for generator-storages not provided. Setting to 50% of energy capacity as a default."
-            initial_soc_genstor = sys.generatorstorages.energy_capacity[:,start_index] * 0.5 # Set initial state of charge to 50% of capacity as a default if not provided
+            @debug "Initial state of charge for generator-storages not provided. Setting to 0% of energy capacity as a default."
+            initial_soc_genstor = fill(0.0, size(sys.generatorstorages.energy_capacity[:,start_index]))
         end
         set_parameter_value.(m[:genstor_initial_soc][:], initial_soc_genstor[:])
 
