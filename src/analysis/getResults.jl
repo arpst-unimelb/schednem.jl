@@ -40,13 +40,17 @@ function get_results(m; conservative_rounding=false)
     end
 
     if m[:genOpDetails].uc
-        gon = round.(Int, value.(m[:gon]))
-        stup = round.(Int, value.(m[:stup]))
-        shdw = round.(Int, value.(m[:shdw]))
+        # Round the gon variable always up
+        gon = ceil.(Int, value.(m[:gon]))
+        gon_before = value.(m[:gon_initial])
+        # Calculate the start-up and shutdown profiles based on the gon variable (not on the actual stup and shdw variables since they can be non-binary if the binary flag is set to false, and we want to have a conservative estimate of the start-ups and shutdowns for the PRAS assessment)
+        stup = diff(hcat(gon_before,gon), dims=2) .> 0
+        shdw = diff(hcat(gon_before,gon), dims=2) .< 0
+        # Note: This implementation is a conservative analysis of the linearised results
     end
     
     if Nstors > 0
-            # Storage charging/discharging profiles
+        # Storage charging/discharging profiles
         p_stor_charge = round.(Int,value.(m[:p_stor_charge]))
         p_stor_discharge = round.(Int,value.(m[:p_stor_discharge]))
         e_stor = round.(Int, value.(m[:e_stor]))
