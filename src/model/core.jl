@@ -94,6 +94,7 @@ function build_operation_model(sys;
     m = add_constraint_powerBalance(m, sys)
     m = add_constraint_techLimits(m; genData=genData)
     m = add_constraints_storageConservation(m)
+    m = add_constraints_hydro_finalSOC(m, sys; hydro_parameters=hydro_parameters)
 
     if genOpDetails.uc || genOpDetails.ramping
         add_constraints_rampLimits!(m, genData)

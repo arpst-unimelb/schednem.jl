@@ -26,6 +26,7 @@ function add_variables(model; genData=nothing)
         
         # Add genstor spillage variable to allow for excess inflow to be spilled (to avoid infeasibility if inflow exceeds discharge capacity)
         @variable(model, genstor_spillage[1:Ngenstors, 1:N] >= 0)
+        @variable(model, genstor_target_slack[1:Ngenstors] >= 0)
     end
 
     if Ndrs > 0

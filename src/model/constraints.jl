@@ -397,3 +397,31 @@ function add_constraints_minUpDownTime!(model, genData)
 
     return model
 end
+
+#%% ===========================================================================================================================================================
+"""
+    add_constraints_hydro_finalSOC(m, hydro_parameters)
+
+Adds a constraint on the final state of charge of hydro generator-storages to prevent unrealistic continuous discharging of hydro storage.
+
+"""
+function add_constraints_hydro_finalSOC(m, sys; hydro_parameters=PRASNEM.get_hydro_parameters())
+    N = m[:N]
+    Ngenstors = m[:Ngenstors]
+
+    if Ngenstors > 0
+        # Determine all the relevant hydro generator-storages based on the categories in the system
+        condition_add_final_soc_constraint = fill(false, Ngenstors)
+        for category in hydro_parameters["final_soc_constraint"]
+            condition_add_final_soc_constraint .|= [sys.generatorstorages.categories[i] == category for i in 1:Ngenstors]
+        end
+        
+        # Then add a constraint on the final state of charge with:
+        #            Final SOC >= Initial SOC - target_slack + inflow(1) - inflow(2)
+        #           The inflows in 1 and 2 are included to allow for the very first timestep, when all the SoC is coming from the inflow in the first timestep (this is a workaround since PRAS doesn't support initial SoC yet).
+        @constraint(m, hydroFinalSOCLimit[gs=1:Ngenstors; condition_add_final_soc_constraint[gs]],
+            m[:e_genstor][gs,N] >= m[:genstor_initial_soc][gs] - m[:genstor_target_slack][gs] + m[:genstor_inflow][gs,1] - m[:genstor_inflow][gs,2] )
+    end
+
+    return m
+end

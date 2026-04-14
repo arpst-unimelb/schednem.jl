@@ -81,6 +81,7 @@ function add_objective(m, sys;
     @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * storage_discharging_price for s=1:Nstors, t=1:N; init=zero(1)))
     @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * hydro_parameters["hydro_discharging_cost"] for gs=1:Ngenstors, t=1:N; init=zero(1)))
     @expression(m, genstorage_spillage_penalty, sum(m[:genstor_spillage][gs,t] * voll_min * 0.98 for gs=1:Ngenstors, t=1:N; init=zero(1)))
+    @expression(m, genstorage_target_slack_penalty, sum(m[:genstor_target_slack][gs] * voll_min * 0.98 for gs=1:Ngenstors; init=zero(1)))
     
     
     @expression(m, operating_cost_drs, sum(m[:p_borrow_drs][drs,t] * drs_cost[drs] for drs=1:Ndrs, t=1:N; init=zero(1)))
@@ -93,7 +94,7 @@ function add_objective(m, sys;
     @objective(m, Min, operating_cost +
         storage_discharging_cost + genstorage_discharging_cost + 
         operating_cost_drs + load_shedding_cost +
-        flow_penalty + genstorage_spillage_penalty)
+        flow_penalty + genstorage_spillage_penalty + genstorage_target_slack_penalty)
 
     return m
 end
