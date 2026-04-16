@@ -220,7 +220,7 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
         time_steps = end_idx - start_idx + 1
 
         if sum(value.(m[:load_shedding])) > 0
-            @warn "Load shedding is occurring in simulation $start_idx-$end_idx: $(sum(value.(m[:load_shedding]))) MWh."
+            @warn "Load shedding is occurring in simulation $start_idx-$end_idx: $(round(sum(value.(m[:load_shedding])), digits=0)) MWh."
         end
 
         res_window = get_results(m)

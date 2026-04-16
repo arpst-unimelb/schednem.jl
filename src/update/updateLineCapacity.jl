@@ -6,6 +6,11 @@ Note that the lineAv matrix should be from one specific sample (not the whole ob
 """
 function updateLineAvailabilityFullHorizon!(m, sys, start_index::Int, lineAv::Matrix; end_index::Int=0)
 
+    if size(lineAv, 1) == 0
+        @debug "Line availability matrix is empty (copperplate?). No updates to line capacities will be made."
+        return m
+    end
+
     # Update the line capacity parameters in the model based on the provided lineAv matrix
     N = m[:N]
     if end_index > 0
@@ -33,6 +38,12 @@ Updates the interface limits in the model for start_index_model:N based on the l
 
 """
 function updateLineAvailabilityStep!(m, sys, lineAv::Matrix, step::Int; start_index_model::Int=1, end_index::Int=0)
+
+    if size(lineAv, 1) == 0
+        @debug "Line availability matrix is empty (copperplate?). No updates to line capacities will be made."
+        return m
+    end
+
     # Update the line capacity parameters in the model based on the provided lineAv matrix
     N = m[:N]
     if end_index > 0
