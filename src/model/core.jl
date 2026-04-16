@@ -126,6 +126,10 @@ Runs the operation model with rolling horizon optimisation, updating the data fr
 """
 function run_operation_model(m, sys; output_file::String="", start_simulation::Int=1, end_simulation::Int=0)
 
+    if start_simulation > 1
+        @warn "Starting simulation from time step $start_simulation. Note that the result includes earlier timesteps, however with random values. Make sure to only use the relevant time steps in the analysis or create a new system model from a later timestep."
+    end
+
     # Check if schedule files already exist
     if "case" in keys(sys.attrs) && output_file != ""
         case_name = sys.attrs["case"]
