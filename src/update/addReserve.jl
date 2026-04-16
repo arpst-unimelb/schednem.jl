@@ -14,6 +14,15 @@ function addReserve!(sys; load_requirements_area=[890, 705, 600, 168, 251])
     #TAS	168
     #VIC	600
 
+    if length(sys.regions.names) == 1
+        # Copperplate system, add the total reserve requirement to the load
+        total_reserve_requirement = sum(load_requirements_area)
+        @debug "Single region system, adding total reserve requirement of $(total_reserve_requirement) MW to system load."
+        sys.attrs["demand_increased_by"] = string(total_reserve_requirement)
+        sys.regions.load[1, :] .+= round(Int, total_reserve_requirement)
+        return sys
+    end
+
     area_region_map = PRASNEM.get_region_area_map(; rev=true)
 
     reserve_requirements_region = zeros(length(sys.regions.names))
