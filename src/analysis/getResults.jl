@@ -31,6 +31,8 @@ function get_results(m; conservative_rounding=false)
     # Generator details
     p_gen = round.(Int, value.(m[:p_gen]))
     p_gen_max = round.(Int, value.(m[:gen_cap]))
+    
+    shortfall = round.(Int, value.(m[:load_shedding]))
 
     # If ramping activated, update the p_gen_max to always to the previous time step's generation + ramping limit
     # --- This is conservative! But if storages are also turned off, this should work to identify critical times if ramping limits are a problem. If only used for PRAS input, this does not work.
@@ -85,7 +87,8 @@ function get_results(m; conservative_rounding=false)
         p_gen_max = p_gen_max,
         gon = gon,
         stup = stup,
-        shdw = shdw
+        shdw = shdw,
+        shortfall=shortfall
     )
 
 end
