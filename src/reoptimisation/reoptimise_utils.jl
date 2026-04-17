@@ -213,12 +213,15 @@ function run_reoptimisation_imperfect_foresight(m, res, sys, start_idx, end_idx,
         # =========================================================
         # UPDATE THE INITIAL CONDITIONS FOR THE NEXT OPTIMISATION BASED ON THE RESULTS OF THIS OPTIMISATION
 
+        # Extract the results from the solution
+        res_temp = get_results(m)
+
         # Get the initial state of charge for storages and generator-storages from the results
         if m[:Nstors] > 0
-            initial_soc_stor = value.(m[:e_stor])[:,move_forward]
+            initial_soc_stor = res_temp.stor_energy[:,move_forward]
         end
         if m[:Ngenstors] > 0
-            initial_soc_genstor = value.(m[:e_genstor])[:,move_forward]
+            initial_soc_genstor = res_temp.genstor_energy[:,move_forward]
         end
         if m[:genOpDetails].ramping
             # get the generation at the last time step of previous window
@@ -226,20 +229,20 @@ function run_reoptimisation_imperfect_foresight(m, res, sys, start_idx, end_idx,
         end
         if m[:genOpDetails].uc
             # Get the commitment status, start-up and shut-down at the last time step of previous window
-            gon_initial = value.(m[:gon])[:,move_forward]
+            gon_initial = res_temp.gon[:,move_forward]
 
             stup_before = zeros(size(m[:stup_before][:,:]))
             shdw_before = zeros(size(m[:shdw_before][:,:]))
             
             # Shift the startup and shutdown indicators 
-            stup_before[:,1:end-move_forward] = value.(m[:stup_before])[:,move_forward+1:end] # Get the earlier time steps from the second previous optimisation
-            stup_before[:,end-move_forward+1:end] = value.(m[:stup])[:,1:move_forward] # Get the last time steps from within the previous optimisation
-            shdw_before[:,1:end-move_forward] = value.(m[:shdw_before])[:,move_forward+1:end]
-            shdw_before[:,end-move_forward+1:end] = value.(m[:shdw])[:,1:move_forward]
+            stup_before[:,1:end-move_forward] = parameter_value.(m[:stup_before])[:,move_forward+1:end] # Get the earlier time steps from the second previous optimisation
+            stup_before[:,end-move_forward+1:end] = res_temp.stup[:,1:move_forward] # Get the last time steps from within the previous optimisation
+            shdw_before[:,1:end-move_forward] = parameter_value.(m[:shdw_before])[:,move_forward+1:end]
+            shdw_before[:,end-move_forward+1:end] = res_temp.shdw[:,1:move_forward]
 
             gen_fail_before = zeros(size(m[:gen_fail_before][:,:]))
-            gen_fail_before[:,1:end-move_forward] = value.(m[:gen_fail_before])[:,move_forward+1:end] # Get the earlier time steps from the second previous optimisation
-            gen_fail_before[:,end-move_forward+1:end] = value.(m[:gen_fail])[:,1:move_forward] # Get the last time steps from within the previous optimisation
+            gen_fail_before[:,1:end-move_forward] = parameter_value.(m[:gen_fail_before])[:,move_forward+1:end] # Get the earlier time steps from the second previous optimisation
+            gen_fail_before[:,end-move_forward+1:end] = parameter_value.(m[:gen_fail])[:,1:move_forward] # Get the last time steps from within the previous optimisation
         end
 
 

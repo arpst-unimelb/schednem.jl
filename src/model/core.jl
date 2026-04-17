@@ -178,26 +178,26 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
         # Determine initial state of charge for storages and generator-storages
         if start_idx > start_simulation # Not for fist time-step
             if Nstors > 0
-                initial_soc_stor = value.(m[:e_stor])[:,move_forward_step]
+                initial_soc_stor = res_window.stor_energy[:,move_forward_step]
             end
             if Ngenstors > 0
-                initial_soc_genstor = value.(m[:e_genstor])[:,move_forward_step]
+                initial_soc_genstor = res_window.genstor_energy[:,move_forward_step]
             end
             if m[:genOpDetails].ramping
                 # get the generation at the last time step of previous window
-                p_gen_initial = value.(m[:p_gen])[:,move_forward_step]
+                p_gen_initial = res_window.p_gen[:,move_forward_step]
             end
             if m[:genOpDetails].uc
                 # Get the commitment status, start-up and shut-down at the last time step of previous window
-                gon_initial = value.(m[:gon])[:,move_forward_step]
+                gon_initial = res_window.gon[:,move_forward_step]
 
                 stup_before = zeros(size(m[:stup_before][:,:]))
                 shdw_before = zeros(size(m[:shdw_before][:,:]))
                 # Shift the startup and shutdown indicators
                 stup_before[:,1:move_forward_step] = value.(m[:stup_before])[:,move_forward_step+1:end] # Get the earlier time steps from the second previous optimisation
-                stup_before[:,move_forward_step+1:end] = value.(m[:stup])[:,1:move_forward_step] # Get the last time steps from within the previous optimisation
+                stup_before[:,move_forward_step+1:end] = res_window.stup[:,1:move_forward_step] # Get the last time steps from within the previous optimisation
                 shdw_before[:,1:move_forward_step] = value.(m[:shdw_before])[:,move_forward_step+1:end]
-                shdw_before[:,move_forward_step+1:end] = value.(m[:shdw])[:,1:move_forward_step]
+                shdw_before[:,move_forward_step+1:end] = res_window.shdw[:,1:move_forward_step]
             end
         end
 
