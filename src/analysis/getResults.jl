@@ -41,7 +41,7 @@ function get_results(m; conservative_rounding=false)
 
     if m[:genOpDetails].uc
         # Round the gon variable always up
-        gon = ceil.(Int, value.(m[:gon]))
+        gon = min.(ceil.(Int, value.(m[:gon])), 1) # The linearised gon variable itself is bound between 0.0 and 1.0 within the optimisation formulation, however numerical errors may lead to values slightly above 1.0.
         gon_before = value.(m[:gon_initial])
         # Calculate the start-up and shutdown profiles based on the gon variable (not on the actual stup and shdw variables since they can be non-binary if the binary flag is set to false, and we want to have a conservative estimate of the start-ups and shutdowns for the PRAS assessment)
         stup = diff(hcat(gon_before,gon), dims=2) .> 0
