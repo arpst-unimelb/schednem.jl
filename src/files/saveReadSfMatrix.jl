@@ -17,7 +17,7 @@ function saveSfMatrix(SfMatrix, filename)
     V = vcat(0, V) # Add a dummy value for the dimensions entry
 
     if !ispath(filename)
-        mkdir(dirname(filename))
+        mkpath(dirname(filename))
     end
 
     DataFrames.DataFrame(I=I, J=J, K=K, V=V) |> CSV.write(filename)

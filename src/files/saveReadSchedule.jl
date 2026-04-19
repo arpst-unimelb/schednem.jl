@@ -11,7 +11,7 @@ function save_schedule(schedule::SchedData, filename::String)
     end
 
     if !isdir(dirname(filename))
-        mkdir(dirname(filename))
+        mkpath(dirname(filename))
         @debug "Created directory: $(dirname(filename))"
     end
     
