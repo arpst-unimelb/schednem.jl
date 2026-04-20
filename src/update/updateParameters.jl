@@ -127,12 +127,6 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
 
     # Update initial generator on/off status if unit commitment is enabled
     if m[:genOpDetails].uc
-        if !isempty(gon_initial)
-            set_parameter_value.(m[:gon_initial][:], gon_initial[:])
-        else
-            @debug "Initial generator on/off status not provided. Setting all generators to on at the first time step."
-            set_parameter_value.(m[:gon_initial][:], fill(1.0, size(m[:gon_initial][:])))
-        end
         if !isempty(stup_before)
             set_parameter_value.(m[:stup_before][:,:], stup_before[:,:])
         else
@@ -152,6 +146,27 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
             @debug "Ramping/UC slack parameter values not provided. Setting all to zero at the first time step (i.e., no failure)."
             set_parameter_value.(m[:gen_fail_before][:,:], fill(0.0, size(m[:gen_fail_before][:,:])))
         end
+        # Set the initial gon status
+        if !isempty(gon_initial)
+            set_parameter_value.(m[:gon_initial][:], gon_initial[:])
+        else
+            @debug "Initial generator on/off status not provided. Setting all generators to on at the first time step."
+            set_parameter_value.(m[:gon_initial][:], fill(1.0, size(m[:gon_initial][:])))
+        end
+        # Make sure that gon_initial fits to the preceeding stup/shdw status before to avoid infeasibility in the first time step
+        idxs_rel = findall((m[:up_time] .> 0.0) .|| (m[:down_time] .> 0.0)) # Get the indices of generators that have commitment constraints
+        if !isempty(idxs_rel)
+            for g in idxs_rel
+                # Has a shut-down before, set gon_initial to 0
+                if sum(parameter_value.(shdw_before[g,end-m[:down_time][g]+1:end])) >= 1.0
+                    @debug "Generator $g has a shut-down before - Updating initial status to off to avoid infeasibility due to ramping limits in the first time step."
+                    set_parameter_value.(m[:gon_initial][g], 0.0)
+                elseif sum(parameter_value.(stup_before[g,end-m[:up_time][g]+1:end]) .- parameter_value.(gen_fail_before[g,end-m[:up_time][g]+1:end])) >= 1.0 # Has a start-up before (but not failed), set gon_initial to 1
+                    @debug "Generator $g has a start-up before - Updating initial status to on to avoid infeasibility due to ramping limits in the first time step."
+                    set_parameter_value.(m[:gon_initial][g], 1.0)
+                end
+            end
+        end
     end
 
     if m[:genOpDetails].ramping
@@ -163,9 +178,9 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
             set_parameter_value.(m[:p_gen_initial][:], sys.generators.capacity[:, max(idxs[1]-1, 1)] * 0.5) # Set initial generation to 50% of capacity as a default
         end
 
-        # If unit commitment is also activated, but not binary (i.e. linearised), we need to make sure that the initial generation is also above the minimum stable generation for the generators that are on, otherwise we may have infeasibility in the first time step due to ramping limits.
+        # If unit commitment is also activated, but not binary (i.e. linearised), we need to make sure that the initial generation fits to the gon status, otherwise we may have infeasibility in the first time step due to ramping limits.
         if m[:genOpDetails].uc && !(m[:genOpDetails].binary)
-            idxs_on = findall(parameter_value.(m[:gon_initial][:]) .== 1.0) # Consider generators with gon_initial > 0.5 as on
+            idxs_on = findall(parameter_value.(m[:gon_initial][:]) .== 1.0)
             # Iterate through the generators that have minimum gen limits
             for (g,t) in eachindex(m[:genMinLimits])
                 if (t == 1) && (g in idxs_on) # If gen has min limit in first time step and is on before
@@ -176,6 +191,9 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
                         @debug "Generator $g has a minimum stable generation of $gen_min_limit MW, but the initial generation is set to $gen_initial MW. Updating initial generation to the minimum stable generation to avoid infeasibility due to ramping limits in the first time step."
                         set_parameter_value.(m[:p_gen_initial][g], max.(gen_initial, gen_min_limit))
                     end
+                elseif !(g in idxs_on) # If gen is off before, set initial generation to zero to avoid infeasibility due to ramping limits in the first time step
+                     @debug "Generator $g has a minimum stable generation of $(parameter_value(m[:p_gen_initial][g])) MW, but the initial status is off. Updating initial generation to 0.0."
+                    set_parameter_value.(m[:p_gen_initial][g], 0.0)
                 end
             end
         end
