@@ -167,6 +167,7 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
     gon_initial = []
     stup_before = []
     shdw_before = []
+    res_window = nothing
 
     # Run the rolling horizon optimisation
     move_forward_step = m[:move_forward]
