@@ -72,6 +72,8 @@ function build_operation_model(sys;
         # Get the generator operation data
         genData = getGenOperationData(input_folder)
         m[:rup] = genData.rup[m[:id_gens]] # Save the ramp-up limits (to use in getResults later)
+        m[:up_time] = round.(Int, genData.up_time[m[:id_gens]])
+        m[:down_time] = round.(Int, genData.down_time[m[:id_gens]])
     else
         genData = nothing
     end
