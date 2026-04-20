@@ -147,7 +147,15 @@ function reoptimise(df_expectation, sys, res_input, genAvSamples, lineAvSamples;
                     end
                     
                     if typeof(temp) <: JuMP.Model 
-                        println("Model infeasible for sample $sample and simulation window $start_idx - $end_idx_extended")
+                        println("Model infeasible for sample $sample and simulation window $start_idx - $end_idx_extended. Conflicting constraints:")
+                        
+                        # Try to compute the conflict and print it
+                        compute_conflict!(temp)
+                        if get_attribute(temp, MOI.ConflictStatus()) == MOI.CONFLICT_FOUND
+                            iis_model, _ = copy_conflict(temp)
+                            print(iis_model)
+                        end
+                    
                         return temp
                     end
 
