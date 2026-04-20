@@ -94,7 +94,7 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
         set_parameter_value.(m[:genstor_charge_cap][:,t], sys.generatorstorages.charge_capacity[:, idxs])
         set_parameter_value.(m[:genstor_discharge_cap][:,t], sys.generatorstorages.discharge_capacity[:, idxs])
         set_parameter_value.(m[:genstor_energy_cap][:,t_full], sys.generatorstorages.energy_capacity[:, idxs_full])
-        set_parameter_value.(m[:genstor_inflow][:,t], sys.generatorstorages.inflow[:, idxs])
+        set_parameter_value.(m[:genstor_inflow][:,t_full], sys.generatorstorages.inflow[:, idxs_full])
 
         # Genstor efficiencies
         set_parameter_value.(m[:genstor_carryover_eff][:,t], sys.generatorstorages.carryover_efficiency[:, idxs])
@@ -161,6 +161,23 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
         else
             #@warn "Initial generation values not provided for ramping. Setting all to half the capacity before first time step."
             set_parameter_value.(m[:p_gen_initial][:], sys.generators.capacity[:, max(idxs[1]-1, 1)] * 0.5) # Set initial generation to 50% of capacity as a default
+        end
+
+        # If unit commitment is also activated, but not binary (i.e. linearised), we need to make sure that the initial generation is also above the minimum stable generation for the generators that are on, otherwise we may have infeasibility in the first time step due to ramping limits.
+        if m[:genOpDetails].uc && !(m[:genOpDetails].binary)
+            idxs_on = findall(parameter_value.(m[:gon_initial][:]) .== 1.0) # Consider generators with gon_initial > 0.5 as on
+            # Iterate through the generators that have minimum gen limits
+            for (g,t) in eachindex(m[:genMinLimits])
+                if (t == 1) && (g in idxs_on) # If gen has min limit in first time step and is on before
+                    # Set initial generation to be at least the minimum stable generation for that generator
+                    gen_min_limit = abs(normalized_coefficient.(m[:genMinLimits][g,1], m[:gon][g,1]))
+                    gen_initial = parameter_value(m[:p_gen_initial][g])
+                    if gen_initial < gen_min_limit
+                        @debug "Generator $g has a minimum stable generation of $gen_min_limit MW, but the initial generation is set to $gen_initial MW. Updating initial generation to the minimum stable generation to avoid infeasibility due to ramping limits in the first time step."
+                        set_parameter_value.(m[:p_gen_initial][g], max.(gen_initial, gen_min_limit))
+                    end
+                end
+            end
         end
     end
 
