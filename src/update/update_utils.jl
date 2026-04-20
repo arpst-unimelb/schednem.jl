@@ -105,7 +105,7 @@ function updateParameters_p_gen_feasible!(m)
         
         # Set initial generation to zero for all generators that are off
         idxs_off = findall(parameter_value.(m[:gon_initial][:]) .== 0.0)
-        set_parameter_value.(m[:p_gen_initial][g], 0.0)
+        set_parameter_value.(m[:p_gen_initial][idxs_off], 0.0)
 
         idxs_on = findall(parameter_value.(m[:gon_initial][:]) .== 1.0)
         # Iterate through the generators that have minimum gen limits
