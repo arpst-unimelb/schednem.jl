@@ -161,6 +161,7 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
                 if sum(parameter_value.(m[:shdw_before][g,end-m[:down_time][g]+1:end])) >= 1.0
                     @debug "Generator $g has a shut-down before - Updating initial status to off to avoid infeasibility due to ramping limits in the first time step."
                     set_parameter_value.(m[:gon_initial][g], 0.0)
+                    set_parameter_value.(m[:stup_before][g,end-m[:up_time][g]+1:end], 0.0) # And set all the preceeding start-up indicators to zero (this is a conservative implementation)
                 elseif sum(parameter_value.(m[:stup_before][g,end-m[:up_time][g]+1:end]) .- parameter_value.(m[:gen_fail_before][g,end-m[:up_time][g]+1:end])) >= 1.0 # Has a start-up before (but not failed), set gon_initial to 1
                     @debug "Generator $g has a start-up before - Updating initial status to on to avoid infeasibility due to ramping limits in the first time step."
                     set_parameter_value.(m[:gon_initial][g], 1.0)
