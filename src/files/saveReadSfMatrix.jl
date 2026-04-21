@@ -55,8 +55,18 @@ Calculates the energy not supplied (ENS) for each sample from a sparse failure m
 function ensFromSfMatrix(filename)
     df = CSV.read(filename, DataFrames.DataFrame)
     ens = zeros(maximum(df.K))
-    for group in groupby(df, :K)
+    for group in DataFrames.groupby(df, :K)
         ens[group.K[1]] = sum(group.V)
     end
     return ens
+end
+
+"""
+    lolhFromSfMatrix(filename)
+Calculates the loss of load hours (LOLH) from a sparse failure matrix CSV file (saved with saveSfMatrix). Returns the LOLH value.
+"""
+function lolhFromSfMatrix(filename)
+    df = CSV.read(filename, DataFrames.DataFrame)
+    # maximum(df.K) - number of samples
+    return sum(df.V .> 0) / maximum(df.K)
 end
