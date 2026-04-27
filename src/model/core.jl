@@ -127,7 +127,7 @@ end
 Runs the operation model with rolling horizon optimisation, updating the data from the PRAS system sys, and returns the resulting schedule as a SchedData object.
 
 """
-function run_operation_model(m, sys; output_file::String="", start_simulation::Int=1, end_simulation::Int=0)
+function run_operation_model(m, sys; output_file::String="", start_simulation::Int=1, end_simulation::Int=0, include_reserve_run::Bool=true)
 
     if start_simulation > 1
         @warn "Starting simulation from time step $start_simulation. Note that the result includes earlier timesteps, however with random values. Make sure to only use the relevant time steps in the analysis or create a new system model from a later timestep."
@@ -153,9 +153,16 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
     println("        Optimisation window: ", m[:N], " | Move forward step: ", m[:move_forward], "")
     println("        Timesteps: ", start_simulation, " to ", full_horizon)
     println("        Ramping: ", m[:genOpDetails].ramping, " | UC: ", m[:genOpDetails].uc, " | Binary: ", m[:genOpDetails].binary)
+    println("        Reserve run: ", include_reserve_run)
 
     # Initialise an empty SchedData object to store the results
     res = SchedData(sys; N=full_horizon) 
+
+    # Create a copy of the system model with reserves if include_reserve_run is true, and add reserves to the system model.
+    if include_reserve_run
+        sys_with_reserves = deepcopy(sys)
+        SchedNEM.addReserve!(sys_with_reserves)
+    end
 
     # TODO: Add updating initial energy here from sys.storages attributes when available in PRAS
 
@@ -205,18 +212,51 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
             end
         end
 
+        if include_reserve_run
+            # Reset the lower bounds for generator commitment
+            set_lower_bound.(m[:gon], 0.0)
+
+            # Update model parameters with reserves
+            update_model_parameters!(m, sys_with_reserves, start_idx; 
+                initial_soc_stor=initial_soc_stor, initial_soc_genstor=initial_soc_genstor, 
+                gon_initial=gon_initial, stup_before=stup_before, shdw_before=shdw_before, p_gen_initial=p_gen_initial)
+
+            # Optimize the model with reserves
+            optimize!(m)
+
+            if is_solved_and_feasible(m)
+                # Extract generator commitments for the current optimisation window with reserves
+                gons = value.(m[:gon])
+                # Set the generator commitment decisions as lower bounds for the next optimisation without reserves to ensure that the reserve constraints are binding and the same commitment decisions are made in the next optimisation without reserves
+                set_lower_bound.(m[:gon], gons) 
+            else
+                @warn "Optimization failed for window $start_idx-$(start_idx+m[:N]-1) for reserve run. Removing reserve constraints for this window."
+                return m
+            end
+        end
+
         # Update model parameters
         update_model_parameters!(m, sys, start_idx; initial_soc_stor=initial_soc_stor, initial_soc_genstor=initial_soc_genstor, 
             gon_initial=gon_initial, stup_before=stup_before, shdw_before=shdw_before, p_gen_initial=p_gen_initial)
-
 
         # Optimize the model
         optimize!(m)
 
         # Check if the optimization was successful
         if !is_solved_and_feasible(m)
-            @warn "Optimization failed at time step $start_idx. Ending simulation and returning infeasible model."
-            return m
+
+            # Try to relax the model by removing the reserve constraints if they were included, and re-optimize
+            if include_reserve_run
+                @warn "Optimization failed at time step $start_idx. Removing reserve constraints and re-optimizing."
+                set_lower_bound.(m[:gon], 0.0) # Remove the lower bound on generator commitment to allow the model to find a feasible solution without reserve constraints
+                optimize!(m)
+            end
+
+            # If shill not feasible, return the model with the infeasibility status for analysis
+            if !is_solved_and_feasible(m)
+                @warn "Optimization failed at time step $start_idx. Ending simulation and returning infeasible model."
+                return m
+            end
         end
 
         # Extract results for full the current optimisation window
@@ -224,7 +264,11 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
         time_steps = end_idx - start_idx + 1
 
         if sum(value.(m[:load_shedding])) > 0
-            @warn "Load shedding is occurring in simulation $start_idx-$end_idx: $(round(sum(value.(m[:load_shedding])), digits=0)) MWh."
+            @warn "Load shedding is occurring in simulation $start_idx-$end_idx: $(round(sum(value.(m[:load_shedding])), digits=2)) MWh."
+        end
+
+        if sum(value.(m[:genstor_spillage])) > 0
+            @warn "Hydro spillage is occurring in simulation $start_idx-$end_idx: $(round(sum(value.(m[:genstor_spillage])), digits=2)) MWh."
         end
 
         res_window = get_results(m)
