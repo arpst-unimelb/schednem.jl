@@ -25,7 +25,8 @@ function build_operation_model(sys;
     DER_parameters::Dict=PRASNEM.get_DER_parameters(),
     genOpDetails=(uc=true, ramping=true, binary=false),
     hydro_parameters=PRASNEM.get_hydro_parameters(),
-    storage_discharging_price::Float64=0.1,
+    objective_parameters=(storage_discharging_price=0.1, transmission_flow_penalty=0.1, 
+            spillage_penalty=0.8, target_slack_penalty=0.8, dsp_rr_cost=0.95),
     )
 
     # First check that the optimisation window is larger than the step size
@@ -90,7 +91,7 @@ function build_operation_model(sys;
     m = add_variables(m; genData)
 
     # Add objective function
-    m = add_objective(m, sys; hydro_parameters=hydro_parameters, storage_discharging_price=storage_discharging_price, genData=genData)
+    m = add_objective(m, sys; hydro_parameters=hydro_parameters, objective_parameters=objective_parameters, genData=genData)
 
     # Add constraints
     m = add_constraint_powerBalance(m, sys)

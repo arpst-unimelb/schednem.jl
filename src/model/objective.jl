@@ -1,14 +1,15 @@
 """
     add_objective(m, sys; hydro_parameters, storage_discharging_price=0.1, genData=nothing)
         
-        
-
+Note in objective_parameters:
+    - Storage discharging price and transmission flow penalty are in AUD/MWh
+    - Spillage penalty, target slack penalty and DR costs are percentages of VoLL_min
 
 """
 function add_objective(m, sys; 
     hydro_parameters=PRASNEM.get_hydro_parameters(),
-    storage_discharging_price=0.1,
-    transmission_flow_penalty=0.1, 
+    objective_parameters=(storage_discharging_price=0.1, transmission_flow_penalty=0.1, 
+            spillage_penalty=0.8, target_slack_penalty=0.8, dsp_rr_cost=0.95),
     genData=nothing)
 
     # Extract system parameters
@@ -60,10 +61,10 @@ function add_objective(m, sys;
     # Extract the demand response costs from the system attributes (else zero)
     if Ndrs > 0
         drs_ids = parse.(Int, reduce(hcat, split.(sys.demandresponses.names, "_"))[1,:])
-        drs_cost = fill(voll_min - 0.1, Ndrs) # Default DR cost is set to VoLL_min - 0.1 to ensure DR is always preferred over load shedding 
+        drs_cost = fill(voll_min * objective_parameters.dsp_rr_cost, Ndrs) # Default DR cost is set to VoLL_min * dsp_rr_cost to ensure DR is always preferred over load shedding 
         for i in 1:Ndrs
             if haskey(sys.attrs, "cvar_dr_" * string(drs_ids[i]))
-                drs_cost[i] = parse(Float64, sys.attrs["cvar_dr_" * string(drs_ids[i])])
+                drs_cost[i] = min(drs_cost[i], parse(Float64, sys.attrs["cvar_dr_" * string(drs_ids[i])]))
             end
         end
     end
@@ -78,17 +79,17 @@ function add_objective(m, sys;
         operating_cost += startup_cost + shutdown_cost
     end
 
-    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * storage_discharging_price for s=1:Nstors, t=1:N; init=zero(1)))
+    @expression(m, storage_discharging_cost, sum(m[:p_stor_discharge][s,t] * objective_parameters.storage_discharging_price for s=1:Nstors, t=1:N; init=zero(1)))
     @expression(m, genstorage_discharging_cost, sum(m[:p_genstor_discharge][gs,t] * hydro_parameters["hydro_discharging_cost"] for gs=1:Ngenstors, t=1:N; init=zero(1)))
-    @expression(m, genstorage_spillage_penalty, sum(m[:genstor_spillage][gs,t] * voll_min * 0.98 for gs=1:Ngenstors, t=1:N; init=zero(1)))
-    @expression(m, genstorage_target_slack_penalty, sum(m[:genstor_target_slack][gs] * voll_min * 0.98 for gs=1:Ngenstors; init=zero(1)))
+    @expression(m, genstorage_spillage_penalty, sum(m[:genstor_spillage][gs,t] * voll_min * objective_parameters.spillage_penalty for gs=1:Ngenstors, t=1:N; init=zero(1)))
+    @expression(m, genstorage_target_slack_penalty, sum(m[:genstor_target_slack][gs] * voll_min * objective_parameters.target_slack_penalty for gs=1:Ngenstors; init=zero(1)))
     
     
     @expression(m, operating_cost_drs, sum(m[:p_borrow_drs][drs,t] * drs_cost[drs] for drs=1:Ndrs, t=1:N; init=zero(1)))
     @expression(m, load_shedding_cost, sum(m[:load_shedding][r,t] * (voll_max - (voll_max - voll_min)/(N-1) * (t-1)) for r=1:Nregions, t=1:N))
     
     # Transmission flow penalty to avoid excessive usage for low cost benefit
-    @expression(m, flow_penalty, sum((m[:p_interface_forward][l,t] + m[:p_interface_backward][l,t]) * transmission_flow_penalty for l=1:Ninterfaces, t=1:N))
+    @expression(m, flow_penalty, sum((m[:p_interface_forward][l,t] + m[:p_interface_backward][l,t]) * objective_parameters.transmission_flow_penalty for l=1:Ninterfaces, t=1:N))
 
     # Objective: Minimize operating cost
     @objective(m, Min, operating_cost +
