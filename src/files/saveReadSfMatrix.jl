@@ -29,11 +29,10 @@ Reads a sparse SfMatrix from a CSV file and reconstructs the full matrix. The CS
 """
 function readSfMatrix(filename)
     df = CSV.read(filename, DataFrames.DataFrame)
-    I = df.I; J = df.J; K = df.K; V = df.V
-    dims = (maximum(I), maximum(J), maximum(K))
+    dims = (maximum(df.I), maximum(df.J), maximum(df.K))
     SfMatrixOut = zeros(Float64, dims)
-    for idx in eachindex(I)
-        SfMatrixOut[I[idx], J[idx], K[idx]] = V[idx]
+    for row in eachrow(df)
+        SfMatrixOut[row.I, row.J, row.K] = row.V
     end
     return SfMatrixOut
 end
