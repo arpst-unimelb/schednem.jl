@@ -32,6 +32,7 @@ function reoptimise(df_expectation, sys, res_input, genAvSamples, lineAvSamples;
     optimisation_window::Int=48, move_forward::Int=24,
     optimiser_name="HiGHS", input_folder::String="",
     DER_parameters=PRASNEM.get_DER_parameters(), 
+    hydro_parameters=PRASNEM.get_hydro_parameters(),
     genOpDetails=(uc=true, ramping=true, binary=false),
     max_extend_simulations::Int=10,
     imperfect_foresight=true)

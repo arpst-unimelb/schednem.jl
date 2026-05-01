@@ -1,10 +1,10 @@
 """
-    addGenCostData(sys::PRAS.SystemModel, input_folder::String)
+    addGenCostData!(sys::PRAS.SystemModel, input_folder::String)
 
 Note that DR cost data is set to be maximum of Voll_min (even if cost_red > VoLL in DER.csv) to ensure that DR is always preferred over load shedding.
 
 """
-function addGenCostData(sys::PRAS.SystemModel, input_folder::String)
+function addGenCostData!(sys::PRAS.SystemModel, input_folder::String)
 
     Ngens = length(sys.generators.names);
     Ndrs = length(sys.demandresponses.names);
@@ -34,7 +34,7 @@ function addGenCostData(sys::PRAS.SystemModel, input_folder::String)
 
         # Add VoLL data if not already present (with default values)
         if !haskey(sys.attrs, "VoLL_min")
-            sys = addVollData(sys)  
+            sys = addVollData!(sys)  
         end
 
         # Load demand response cost data
@@ -56,12 +56,12 @@ end
 
 #%% ========================================================================================================================
 """
-    addVollData(sys::PRAS.SystemModel; voll_value::Float64=20300.0, voll_min_value::Float64=20200.0)
+    addVollData!(sys::PRAS.SystemModel; voll_value::Float64=20300.0, voll_min_value::Float64=20200.0)
 
 VoLL_min is a construct to ensure that storage is operated greedily, i.e. load shedding is shifted to later time steps as much as possible. 
 This is achieved by gradually slightly reducing the load shedding cost over the optimisation horizon, which ensures that any discharge from storage is preferred over load shedding as early as possible.
 """
-function addVollData(sys::PRAS.SystemModel; voll_value::Float64=20300.0, voll_min_value::Float64=0.99*20300.0)
+function addVollData!(sys::PRAS.SystemModel; voll_value::Float64=20300.0, voll_min_value::Float64=0.99*20300.0)
 
     sys.attrs["VoLL"] = string(round(Int, voll_value))
     sys.attrs["VoLL_min"] = string(round(Int, voll_min_value))

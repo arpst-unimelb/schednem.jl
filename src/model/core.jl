@@ -38,8 +38,8 @@ function build_operation_model(sys;
         @warn "The optimisation window and/or move forward step size might not be long enough to fully capture the generator operation details (e.g., minimum up/down times)."
     end
 
-    sys = addVollData(sys)
-    sys = addGenCostData(sys, input_folder)
+    addVollData!(sys)
+    addGenCostData!(sys, input_folder)
 
     # Get the parameters of the system model
     Nregions = length(sys.regions.names);
