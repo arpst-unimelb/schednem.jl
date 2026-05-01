@@ -11,6 +11,15 @@ The implementation for the rolling horizon optimisation is based on the JuMP tut
 Note that the default solver is HiGHS, however, we recommend using Gurobi to reduce solving time. The optimiser can be specified as optional parameter in `build_operation_model()`.
 
 ---
+# Working notes
+
+Current version:
+- No DSP included (which would correspond to PRAS logic of using storage first before DSP, but not AEMO logic, which gives DSP specific prices below market cap.)
+- Long-term optimisation for hydro is not included yet.
+
+
+
+---
 ## Examples
 
 ```Julia
