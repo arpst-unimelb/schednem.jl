@@ -61,7 +61,8 @@ function add_objective(m, sys;
     # Extract the demand response costs from the system attributes (else zero)
     if Ndrs > 0
         drs_ids = parse.(Int, reduce(hcat, split.(sys.demandresponses.names, "_"))[1,:])
-        drs_cost = fill(voll_min * objective_parameters.dsp_rr_cost, Ndrs) # Default DR cost is set to VoLL_min * dsp_rr_cost to ensure DR is always preferred over load shedding 
+        m[:drs_rr_cost] = voll_min * objective_parameters.dsp_rr_cost
+        drs_cost = fill(m[:drs_rr_cost], Ndrs) # Default DR cost is set to VoLL_min * dsp_rr_cost to ensure DR is always preferred over load shedding 
         for i in 1:Ndrs
             if haskey(sys.attrs, "cvar_dr_" * string(drs_ids[i]))
                 drs_cost[i] = min(drs_cost[i], parse(Float64, sys.attrs["cvar_dr_" * string(drs_ids[i])]))

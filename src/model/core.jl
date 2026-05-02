@@ -83,6 +83,8 @@ function build_operation_model(sys;
         m[:Ndrs] = length(sys.demandresponses.names)  # Save the number of demand response units as a parameter
         m[:drs_idxs_DSP] = findall(sys.demandresponses.categories .== "DSP")
         m[:drs_idxs_EV] = findall(sys.demandresponses.categories .== "EV")
+        m[:drs_rr_cost] = 0.0 # Initialize the demand response cost parameter, will be updated in add_objective based on system attributes
+        m[:drs_max_energy_time_window] = DER_parameters["DSP_limit_energy_per_window"]["max_energy_time_window"]
     else
         m[:Ndrs] = 0  # Set the number of demand response units to 0 if DSP is not included
     end
