@@ -203,7 +203,7 @@ function add_constraints_demandResponse_maxEnergy(m, DER_params)
 
             relevant_price_bands = DER_params["DSP_limit_energy_per_window"]["limits_on_price_bands"]
             if 0 in relevant_price_bands
-                relevant_price_bands = vcat(relevant_price_bands, m[:VoLL_min])
+                relevant_price_bands = vcat(relevant_price_bands, m[:drs_rr_cost])
             end
 
             # Find the list of relevant demand response units that should be added
@@ -219,7 +219,7 @@ function add_constraints_demandResponse_maxEnergy(m, DER_params)
             end
 
             if !isempty(idxs_DSP_drs)
-                prices_print = unique([prices_drs[i] == m[:VoLL_min] ? "Rel. Resp." : string(prices_drs[i]) for i in 1:length(prices_drs)])
+                prices_print = unique([prices_drs[i] == m[:drs_rr_cost] ? "Rel. Resp." : string(prices_drs[i]) for i in eachindex(prices_drs)])
                  @info "Adding max energy constraints ($maxEnergyFac h) for DSP units $idxs_DSP_drs in price bands $prices_print."
             end
             MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
