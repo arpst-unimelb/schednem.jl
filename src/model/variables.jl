@@ -96,6 +96,8 @@ function add_variables(model; genData=nothing)
             drs_payback_cap[1:Ndrs, 1:N] in Parameter(0.0)
             drs_energy_cap[1:Ndrs, 1:N] in Parameter(0.0)
             drs_energy_interest[1:Ndrs, 1:N] in Parameter(-1.0) # Note that interest is the growth (positive) or shrinkage (negative) of the borrowed energy, i.e. the payback needs to be more than the borrowed energy if interest is positive, and can be less if interest is negative.
+            drs_borrow_before[1:Ndrs] in Parameter(0.0) # Borrowed energy before the start of the optimisation (for maxEnergy constraint)
+            drs_remaining_energy_included[1:Ndrs, 1:N] in Parameter(0.0) # Time until which the maxEnergy constraint should be applied for including the borrowed energy before the start of the optimisation (for maxEnergy constraint)
         end)
     end
 

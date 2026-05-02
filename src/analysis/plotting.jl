@@ -9,7 +9,7 @@ Function to plot the time series results of the optimization model for a specifi
 - region: A vector of region indices to plot. If empty, all regions will be plotted.
 
 """
-function plot_timeseries_results(m, sys; region::Vector=[], title="", legend=:outertopright)
+function plot_timeseries_results(m, sys; region::Vector=[], title="", legend=:outertopright, filename="")
 
     if isempty(region)
         region = collect(1:m[:Nregions])
@@ -87,23 +87,34 @@ function plot_timeseries_results(m, sys; region::Vector=[], title="", legend=:ou
     gen_stack = hcat(gen_other, gen_gas, gen_w, gen_pv, genstor_discharge, stor_discharge, p_import, shed, drs_dsp_borrow, drs_ev_borrow)
     charge_stack = hcat(-genstor_charge, -stor_charge, -p_export, -drs_dsp_payback, -drs_ev_payback)
 
+    x = vcat(repeat(0.5:1.0:length(dem), inner=2)[2:end], length(dem) + 0.5)
+    y_pos = hcat([repeat(gen_stack[:,i], inner=2) for i in axes(gen_stack,2)]...)
+    y_neg = hcat([repeat(charge_stack[:,i], inner=2) for i in axes(charge_stack,2)]...)
+    y_dem = repeat(dem, inner=2)
+    y_dem_net = repeat(dem .- drs_dsp_borrow .- drs_ev_borrow, inner=2)
+
     comp_labels = ["Coal" "Gas" "Wind" "Solar PV" "Hydro" "Battery" "Imports/Exports" "Load shedding" "DSP" "EV (shifting)"]
     comp_labels[findall(x -> x == 0.0, sum(gen_stack, dims=1)[:])] .= ""
 
-    plt = Plots.areaplot(t, gen_stack ./ 1e3, color=[:black :grey 8 5 10 11 3 :red :orange :blue], fillalpha = 0.8, 
-        labels = comp_labels, lw=0, palette=:Spectral_11, legend=legend,
-        size=(700, 400))
-    Plots.areaplot!(plt, t, charge_stack ./ 1e3, color=[10 11 3 :orange :blue], fillalpha = 0.8, labels=["" ""], lw=0, palette=:Spectral_11)
-    Plots.plot!(plt, t, dem  ./ 1e3; label = "", lw = 1, lc = :black, ls=:dash)
-    Plots.plot!(plt, t, (dem .- drs_dsp_borrow .- drs_ev_borrow) ./ 1e3; label = "Net Demand", lw = 2, lc = :black)
+    plt = Plots.areaplot(x, y_pos ./ 1e3, color=[:black :grey 8 5 10 11 3 :red :orange :blue], fillalpha = 0.8, 
+    labels = comp_labels, lw=0, palette=:Spectral_11, legend=legend,
+    size=(700, 400))
+    Plots.areaplot!(plt, x, y_neg ./ 1e3, color=[10 11 3 :orange :blue], fillalpha = 0.8, labels=["" ""], lw=0, palette=:Spectral_11)
+    Plots.plot!(plt, x, y_dem  ./ 1e3; label = "", lw = 1, lc = :black, ls=:dash)
+    Plots.plot!(plt, x, y_dem_net ./ 1e3; label = "Net Demand", lw = 2, lc = :black)
     #Plots.areaplot!(plt, t, gen_pv ./ 1e3; label = "Solar PV", lw = 2, lc = :yellow)
 
     Plots.xlabel!("Hour")
     Plots.ylabel!("Power [GW]")
+    Plots.xticks!(1:6:length(dem), string.(1:6:length(dem)))
     if title != ""
         Plots.title!(title)
     else
         Plots.title!("Regions: $region | ENS: $(round(sum(shed))) MWh")
+    end
+
+    if filename != ""
+        savefig(plt, filename)
     end
 
     return plt
