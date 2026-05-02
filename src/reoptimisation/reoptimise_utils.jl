@@ -249,6 +249,15 @@ function run_reoptimisation_imperfect_foresight(m, res, sys, start_idx, end_idx,
             gen_fail_before[:,end-move_forward+1:end] = parameter_value.(m[:gen_fail])[:,1:move_forward] # Get the last time steps from within the previous optimisation
         end
 
+        if m[:Ndrs] > 0 
+            # Get the DSP activation and borrowed energy for the last time steps of the previous optimisation to update the initial conditions for the next optimisation
+            drs_borrow_before = zeros(m[:Ndrs])
+            drs_remaining_energy_included_time = 0
+            if any(res_temp.drs_borrowing[:,1:move_forward] .> 0) # If there is any DSP activation in the last time steps of the previous optimisation
+                drs_borrow_before = drs_borrow_before .+ sum(res_temp.drs_borrowing[:,1:move_forward], dims=2)[:] # Get the total borrowed energy in the last time steps of the previous optimisation as the initial borrowed energy for the next optimisation
+                drs_remaining_energy_included_time = m[:drs_max_energy_time_window] - move_forward - drs_remaining_energy_included_time # Set the time until which the maxEnergy constraint should be applied for including the borrowed energy before the start of the optimisation (for maxEnergy constraint) to be equal to the move_forward parameter, assuming that the borrowed energy will be paid back within this time frame. This is a simplification, but it allows us to include the effect of DSP activation on the next optimisation.
+            end
+        end
 
         # Then go back to the start of the loop and run the next optimisation with the updated initial conditions and availability information
     end
