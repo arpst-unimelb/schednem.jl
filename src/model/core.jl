@@ -110,7 +110,7 @@ function build_operation_model(sys;
     # Add DER specific constraints
     if DER_parameters["DSP_flexibility"] || DER_parameters["EV_charge_flexibility"]
         m = add_constraints_demandResponse(m, DER_parameters)
-        m = add_constraints_demandResponse_paybackTime(m, DER_parameters)
+        #m = add_constraints_demandResponse_paybackTime(m, DER_parameters) # Currently not used as maxEnergy constraint is added
         m = add_constraints_demandResponse_maxEnergy(m, DER_parameters)
     end
     if !DER_parameters["VPP_flexibility"]
