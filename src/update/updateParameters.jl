@@ -10,7 +10,8 @@ Initial SOC: If initial_soc_stor or initial_soc_genstor are empty, set them to 0
 
 """
 function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial_soc_stor=[], initial_soc_genstor=[],
-    gon_initial=[], stup_before=[], shdw_before=[], p_gen_initial=[], gen_fail_before=[])
+    gon_initial=[], stup_before=[], shdw_before=[], p_gen_initial=[], gen_fail_before=[], 
+    drs_borrow_before=[], drs_remaining_energy_included_time::Int=0)
 
     total_length, _ = PRAS.get_params(sys)
 
@@ -117,12 +118,32 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
     if Ndrs > 0
         set_parameter_value.(m[:drs_borrow_cap][:,t], sys.demandresponses.borrow_capacity[:, idxs])
         set_parameter_value.(m[:drs_payback_cap][:,t], sys.demandresponses.payback_capacity[:, idxs])
-        set_parameter_value.(m[:drs_energy_interest][:,t], sys.demandresponses.borrowed_energy_interest[:, idxs])
+        
+        # WARNING: Currently setting the energy interest to -1.0 for all time steps
+        #set_parameter_value.(m[:drs_energy_interest][:,t], sys.demandresponses.borrowed_energy_interest[:, idxs])
+        set_parameter_value.(m[:drs_energy_interest][:,t], -1.0) 
 
-        # Set all the remaining times the demand response parameters to zero
-        #set_parameter_value.(m[:drs_borrow_cap][:,remaining_t], sys.demandresponses.borrow_capacity[:, remaining_idxs]) # Keep the borrow capacity for the remaining time steps to keep the max energy constraint correct
+        # Set the borrow capacity for the remaining time steps to the last value
+        set_parameter_value.(m[:drs_borrow_cap][:,remaining_t], sys.demandresponses.borrow_capacity[:, idxs[end]]) # Keep the borrow capacity for the remaining time steps to keep the max energy constraint correct
+        
+        # Set the payback capacity and energy interest for the remaining time steps to zero to not allow any later borrowing
         set_parameter_value.(m[:drs_payback_cap][:,remaining_t], fill(0.0, size(m[:drs_payback_cap][:,remaining_t])))
-        set_parameter_value.(m[:drs_energy_interest][:,remaining_t], fill(-1.0, size(m[:drs_energy_interest][:,remaining_t])))
+        set_parameter_value.(m[:drs_energy_interest][:,remaining_t], fill(0.0, size(m[:drs_energy_interest][:,remaining_t])))
+        
+        # And set the information if DSP has been used before and maxEnergy constraint is activated
+        if !isempty(drs_borrow_before)
+            set_parameter_value.(m[:drs_borrow_before][:], drs_borrow_before[:])
+        else
+            @debug "Borrowed energy before the start of the optimisation not provided for demand response. Setting to zero as a default."
+            set_parameter_value.(m[:drs_borrow_before][:], fill(0.0, size(m[:drs_borrow_before][:])))
+        end
+
+        # And select the times that should be included in the maxEnergy constraint from before
+        set_parameter_value.(m[:drs_remaining_energy_included], 0.0)
+        if !iszero(drs_remaining_energy_included_time)
+            # Set the time until which the maxEnergy constraint should be applied for including the borrowed energy before the start of the optimisation (for maxEnergy constraint)
+            set_parameter_value.(m[:drs_remaining_energy_included][:,1:drs_remaining_energy_included_time], 1.0)
+        end
     end
 
     # Update initial generator on/off status if unit commitment is enabled

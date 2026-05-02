@@ -224,6 +224,7 @@ function add_constraints_demandResponse_maxEnergy(m, DER_params)
             end
             MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
             @constraint(m, drsMaxEnergyDSP[i=idxs_DSP_drs, T=collect(window:window:N)], sum(m[:p_borrow_drs][i,t] for t=T-window+1:T)  <= maxEnergyFac / window * sum(m[:drs_borrow_cap][i,t] for t=T-window+1:T))
+            @constraint(m, drsMaxEnergyDSP_withBorrowBefore[i=idxs_DSP_drs], sum(m[:p_borrow_drs][i,t] .*  m[:drs_remaining_energy_included][i,t] for t=1:N) + m[:drs_borrow_before][i]  <= maxEnergyFac / window * (window / N) * sum(m[:drs_borrow_cap][i,t] for t=1:N))
         end
 
         if !isempty(idxs_EV) && DER_params["EV_limit_energy_per_window"]["enabled"]

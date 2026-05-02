@@ -160,6 +160,10 @@ function run_reoptimisation_imperfect_foresight(m, res, sys, start_idx, end_idx,
     # Get the initial model parameters from the res object values
     initial_soc_stor, initial_soc_genstor, p_gen_initial, gon_initial, stup_before, shdw_before, gen_fail_before = get_system_parameters(res, start_idx, optimisation_window, m[:genOpDetails], genAvSample)      
 
+    # Initial parameters for DSP maxEnergy constraint (assume that normal operation doesn't lead to DSP activation)
+    drs_borrow_before = []
+    drs_remaining_energy_included_time = 0
+
     # Now run the rolling horizon simulation and save the load shedding results
     t = start_idx # First simulation at the start_idx
     while t <= end_idx
@@ -175,7 +179,7 @@ function run_reoptimisation_imperfect_foresight(m, res, sys, start_idx, end_idx,
             initial_soc_stor=initial_soc_stor, initial_soc_genstor=initial_soc_genstor,
             end_index=t_end,
             p_gen_initial=p_gen_initial, gon_initial=gon_initial, stup_before=stup_before, shdw_before=shdw_before,
-            gen_fail_before=gen_fail_before)
+            gen_fail_before=gen_fail_before, drs_borrow_before=drs_borrow_before, drs_remaining_energy_included_time=drs_remaining_energy_included_time)
         
         # Update the generation and line availability from t for the whole optimisation window
         updateGenAvailabilityStep!(m, genAvSample, t) # end index is not needed since not updating from sys
