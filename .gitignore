@@ -4,3 +4,4 @@
 /Manifest*.toml
 /_personal scripts/*
 /.vscode/*
+/_temp/*

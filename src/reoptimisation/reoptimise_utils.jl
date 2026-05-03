@@ -37,12 +37,12 @@ end
 
 #%%
 """
-        get_all_simulation_windows(df_results, N, Nsamples, statechange_times; default_horizon::Int=24, min_time_after_event::Int=5)
+        get_all_simulation_windows(df_results, N, Nsamples, statechange_times; default_horizon::Int=24, min_time_after_event::Int=4)
 
 Function to calculate the simulation windows for reoptimisation for each sample.
 
 """
-function get_all_simulation_windows(df_results, N, Nsamples, statechange_times; default_horizon::Int=24, min_time_after_event::Int=5)
+function get_all_simulation_windows(df_results, N, Nsamples, statechange_times; default_horizon::Int=24, min_time_after_event::Int=4)
 
     # If df_results is a string, use the get_all_events function to create the dataframe from the results files
     if typeof(df_results) <: String
@@ -60,7 +60,7 @@ function get_all_simulation_windows(df_results, N, Nsamples, statechange_times; 
         timesteps_to_simulate = zeros(Int, N)
         for i in 1:DataFrames.nrow(group)
             start_time = simulation_start_times[i]
-            end_time = min(max(start_time + default_horizon - 1, group.end_index[i] + min_time_after_event - 1), N)
+            end_time = min(max(start_time + default_horizon - 1, group.end_index[i] + min_time_after_event), N)
             timesteps_to_simulate[start_time:end_time] .= 1
         end
         diff = vcat([timesteps_to_simulate[1] > 0 ? 1 : 0], timesteps_to_simulate[2:end] .- timesteps_to_simulate[1:end-1], [timesteps_to_simulate[end] > 0 ? -1 : 0])
@@ -189,8 +189,16 @@ function run_reoptimisation_imperfect_foresight(m, res, sys, start_idx, end_idx,
         optimize!(m)
         
         if !is_solved_and_feasible(m)
-            @warn "Optimization failed for $t - $t_end (full window: $start_idx - $end_idx). Ending simulation and returning infeasible model."
-            return m
+            @warn "Optimization failed for $t - $t_end (full window: $start_idx - $end_idx). Ending simulation for this horizon and returning load shedding results. Conflicting constraints:"
+
+            # Try to compute the conflict and print it
+            compute_conflict!(temp)
+            if get_attribute(temp, MOI.ConflictStatus()) == MOI.CONFLICT_FOUND
+                iis_model, _ = copy_conflict(temp)
+                print(iis_model)
+            end
+
+            return load_shedding
         end
 
         # =========================================================
