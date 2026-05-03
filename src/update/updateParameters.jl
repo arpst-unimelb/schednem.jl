@@ -132,7 +132,15 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
         
         # And set the information if DSP has been used before and maxEnergy constraint is activated
         if !isempty(drs_borrow_before)
-            set_parameter_value.(m[:drs_borrow_before][:], drs_borrow_before[:])
+            # Check that the borrowed energy before the start of the optimisation does not exceed the energy capacity
+            for drs in 1:Ndrs
+                if sys.demandresponses.borrowed_energy_interest[drs, start_index] > -1.0
+                    drs_borrow_before[drs] = min(drs_borrow_before[drs], sys.demandresponses.energy_capacity[drs, start_index])
+                else
+                    drs_borrow_before[drs] = 0.0 # If interest is -1.0, set the borrowed energy before the start of the optimisation to zero since it cannot be paid back
+                end
+            end
+            set_parameter_value.(m[:drs_borrow_before][:], drs_borrow_before[:]) # Make sure that the borrowed energy before the start of the optimisation does not exceed the energy capacity
         else
             @debug "Borrowed energy before the start of the optimisation not provided for demand response. Setting to zero as a default."
             set_parameter_value.(m[:drs_borrow_before][:], fill(0.0, size(m[:drs_borrow_before][:])))

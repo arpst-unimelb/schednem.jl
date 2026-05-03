@@ -101,14 +101,10 @@ function reoptimise(df_expectation, sys, res_input, genAvSamples, lineAvSamples;
                 temp = run_reoptimisation_perfect_foresight(m, res_input, sys, start_idx, end_idx, genAvSamples[:,:,sample], lineAvSamples[:,:,sample])
             end
 
-            # If model was infeasible, return the model to check the infeasibility
-            if typeof(temp) <: JuMP.Model
-                println("Model infeasible for sample $sample and simulation window $start_idx - $end_idx")
-                return temp
-            end
             
             # Now check if load shedding is still happening at the end of the simulation window
-            if sum(temp[:, end-min_time_after_event+1:end]) == 0 || (end_idx >= N)
+            len_temp = size(temp)[2]
+            if sum(temp[:, end-min(min_time_after_event, len_temp)+1:end]) == 0 || (end_idx >= N)
                 # Save the load shedding results if no load shedding at the end or at end of the timeseries
                 load_shedding_output[:, start_idx:end_idx, sample] = temp
             else
@@ -146,24 +142,12 @@ function reoptimise(df_expectation, sys, res_input, genAvSamples, lineAvSamples;
                     else
                         temp = run_reoptimisation_perfect_foresight(m, res_input, sys, start_idx, end_idx_extended, genAvSamples[:,:,sample], lineAvSamples[:,:,sample])
                     end
-                    
-                    if typeof(temp) <: JuMP.Model 
-                        println("Model infeasible for sample $sample and simulation window $start_idx - $end_idx_extended. Conflicting constraints:")
-                        
-                        # Try to compute the conflict and print it
-                        compute_conflict!(temp)
-                        if get_attribute(temp, MOI.ConflictStatus()) == MOI.CONFLICT_FOUND
-                            iis_model, _ = copy_conflict(temp)
-                            print(iis_model)
-                        end
-                    
-                        return temp
-                    end
+
+                    # Save the load shedding results for the extended window (do this every time in case next simulation window fails)
+                    load_shedding_output[:, start_idx:end_idx_extended, sample] = temp
 
                     # Check if load shedding is still happening at the end of the extended simulation window
                     if sum(temp[:, end-min_time_after_event+1:end]) == 0 || (end_idx_extended == N)
-                        # Save the load shedding results if no load shedding at the end or at end of the timeseries
-                        load_shedding_output[:, start_idx:end_idx_extended, sample] = temp
                         println("      Done. New window ended at $(end_idx_extended).")
                         break
                     end

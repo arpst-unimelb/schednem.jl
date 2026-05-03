@@ -250,8 +250,11 @@ end
 """
     add_constraints_demandResponse_paybackTime(m, DER_params)
 
+CURRENTLY NOT USED!
 """
 function add_constraints_demandResponse_paybackTime(m, DER_params)
+    @warn "add_constraints_demandResponse_paybackTime is currently not used."
+    return m
 
     # Extract system parameters
     N = m[:N]
