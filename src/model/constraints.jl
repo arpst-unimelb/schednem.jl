@@ -389,7 +389,7 @@ function add_constraints_minUpDownTime!(model, genData)
 
     # ====== Minimum up/down time constraints ======
     # Note: The startup/shutdown always is considered to happen at the beginning of the time step, i.e. startup is on, shutdown is off
-    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
+    MOI.set(model, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
     # Minimum up time constraints
     condition_min_up = genData.up_time[id_gens] .> 0 # Only add minimum up time constraints for generators with minimum up time requirements
     @constraint(model, minUpTime[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_min_up[g]],
