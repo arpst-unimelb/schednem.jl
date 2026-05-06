@@ -153,6 +153,7 @@ function add_constraints_demandResponse(m, DER_params)
         return m # If there are no demand response units, just return the model without adding any constraints
     end
 
+    MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
     # Add limit if payback before borrowing is not allowed
     if !DER_params["DSP_payback_before_borrowing"]
         @constraint(m, drsPaybackBeforeBorrowingDSP[drs=drs_idxs_DSP, t=1:N], m[:e_drs][drs,t] >= 0.0)
@@ -388,7 +389,7 @@ function add_constraints_minUpDownTime!(model, genData)
 
     # ====== Minimum up/down time constraints ======
     # Note: The startup/shutdown always is considered to happen at the beginning of the time step, i.e. startup is on, shutdown is off
-
+    MOI.set(model, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
     # Minimum up time constraints
     condition_min_up = genData.up_time[id_gens] .> 0 # Only add minimum up time constraints for generators with minimum up time requirements
     @constraint(model, minUpTime[g=1:Ngens, t=1:N; model[:genOpDetails].uc && condition_min_up[g]],
@@ -423,6 +424,7 @@ function add_constraints_hydro_finalSOC(m, sys; hydro_parameters=PRASNEM.get_hyd
         # Then add a constraint on the final state of charge with:
         #            Final SOC >= Initial SOC - target_slack + inflow(1) - inflow(2)
         #           The inflows in 1 and 2 are included to allow for the very first timestep, when all the SoC is coming from the inflow in the first timestep (this is a workaround since PRAS doesn't support initial SoC yet).
+        MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
         @constraint(m, hydroFinalSOCLimit[gs=1:Ngenstors; condition_add_final_soc_constraint[gs]],
             m[:e_genstor][gs,N] >= m[:genstor_initial_soc][gs] - m[:genstor_target_slack][gs] + m[:genstor_inflow][gs,1] - m[:genstor_inflow][gs,2] )
     end
