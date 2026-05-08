@@ -117,6 +117,8 @@ function build_operation_model(sys;
         m = add_constraints_disableVPP(m, sys)
     end
 
+		MOI.set(m, POI.ConstraintsInterpretation(), POI.BOUNDS_AND_CONSTRAINTS)
+
     # Initialise with first step
     update_model_parameters!(m, sys, 1)
 
