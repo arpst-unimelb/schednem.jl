@@ -297,9 +297,10 @@ function add_constraints_disableVPP(m, sys)
     idxs_vpp = findall(x -> x == "VPP", sys.storages.categories)
 
     if !isempty(idxs_vpp)
+        @warn "VPP found in the system, but flexibility of VPP is disabled in the parameters passed to SchedNEM. Make sure the handling in PRASNEM and SchedNEM is consistens."
 
-        # These constraints are added as bounds
-        MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_BOUNDS)
+        # These constraints are added as constraints (to not conflict with the bounds added in add_constraint_techLimits)
+        MOI.set(m, POI.ConstraintsInterpretation(), POI.ONLY_CONSTRAINTS)
         fix.(m[:e_stor][idxs_vpp,:], 0.0; force=true)
     end
 
