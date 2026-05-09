@@ -54,6 +54,7 @@ function build_operation_model(sys;
     # Set up the optimization model
     m = Model(() -> POI.Optimizer(optimiser));
     set_silent(m);
+	set_string_names_on_creation(m, false);
 
     # Store model parameters as JuMP parameters
     m[:N] = optimisation_window  # Save the number of time steps as a parameter
