@@ -3,7 +3,7 @@
 
 The struct for the schedule data returned by the operation model.
 """
-struct SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}
+struct SchedData{N, Ngens, Nstors, Ngenstors, Ndrs, Nregions}
 
     # Storge variables
     stor_charging::Matrix{Int}
@@ -27,6 +27,9 @@ struct SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}
     p_gen::Matrix{Int}
     p_gen_max::Matrix{Int}
 
+    # Shortfall variables
+    shortfall::Matrix{Int}
+
     # Constructor without arguments, initializes all fields with empty matrices
     function SchedData(sys::PRAS.SystemModel; N=0)
         if N == 0
@@ -37,28 +40,31 @@ struct SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}
         Nstors = length(sys.storages.names)
         Ngenstors = length(sys.generatorstorages.names)
         Ndrs = length(sys.demandresponses.names)
+        Nregions = length(sys.regions.names)
 
-        new{N, Ngens, Nstors, Ngenstors, Ndrs}(
+        new{N, Ngens, Nstors, Ngenstors, Ndrs, Nregions}(
             Matrix{Int}(undef, Nstors, N), Matrix{Int}(undef, Nstors, N), Matrix{Int}(undef, Nstors, N),
             Matrix{Int}(undef, Ngenstors, N), Matrix{Int}(undef, Ngenstors, N), Matrix{Int}(undef, Ngenstors, N),
             Matrix{Int}(undef, Ndrs, N), Matrix{Int}(undef, Ndrs, N),
             Matrix{Int}(undef, Ngens, N), Matrix{Int}(undef, Ngens, N), Matrix{Int}(undef, Ngens, N),
-            Matrix{Int}(undef, Ngens, N), Matrix{Int}(undef, Ngens, N))
+            Matrix{Int}(undef, Ngens, N), Matrix{Int}(undef, Ngens, N),
+            Matrix{Int}(undef, Nregions, N))
     end
 
     function SchedData(params)
-        N, Ngens, Nstors, Ngenstors, Ndrs = params
+        N, Ngens, Nstors, Ngenstors, Ndrs, Nregions = params
         new{params...}(
             Matrix{Int}(undef, Nstors, N), Matrix{Int}(undef, Nstors, N), Matrix{Int}(undef, Nstors, N),
             Matrix{Int}(undef, Ngenstors, N), Matrix{Int}(undef, Ngenstors, N), Matrix{Int}(undef, Ngenstors, N),
             Matrix{Int}(undef, Ndrs, N), Matrix{Int}(undef, Ndrs, N),
             Matrix{Int}(undef, Ngens, N), Matrix{Int}(undef, Ngens, N), Matrix{Int}(undef, Ngens, N),
-            Matrix{Int}(undef, Ngens, N), Matrix{Int}(undef, Ngens, N))
+            Matrix{Int}(undef, Ngens, N), Matrix{Int}(undef, Ngens, N),
+            Matrix{Int}(undef, Nregions, N))
     end
 
     # Constructor with all fields
-    function SchedData(stor_charging, stor_discharging, stor_energy, genstor_charging, genstor_discharging, genstor_energy, drs_borrowing, drs_payback, gon, stup, shdw, p_gen, p_gen_max)
-        new{size(stor_charging, 1), size(gon, 1), size(stor_charging, 1), size(genstor_charging, 1), size(drs_borrowing, 1)}(stor_charging, stor_discharging, stor_energy, genstor_charging, genstor_discharging, genstor_energy, drs_borrowing, drs_payback, gon, stup, shdw, p_gen, p_gen_max)
+    function SchedData(stor_charging, stor_discharging, stor_energy, genstor_charging, genstor_discharging, genstor_energy, drs_borrowing, drs_payback, gon, stup, shdw, p_gen, p_gen_max, shortfall)
+        new{size(stor_charging, 1), size(gon, 1), size(stor_charging, 1), size(genstor_charging, 1), size(drs_borrowing, 1), size(shortfall, 1)}(stor_charging, stor_discharging, stor_energy, genstor_charging, genstor_discharging, genstor_energy, drs_borrowing, drs_payback, gon, stup, shdw, p_gen, p_gen_max, shortfall)
     end
 
 end
@@ -70,22 +76,26 @@ Defining a number of functions to access the SchedData
 
 """
 
-function Base.show(io::IO, ::MIME"text/plain", res::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}) where {N, Ngens, Nstors, Ngenstors, Ndrs}
+function Base.show(io::IO, ::MIME"text/plain", res::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs, Nregions}) where {N, Ngens, Nstors, Ngenstors, Ndrs, Nregions}
     println(io, "Schedule Data for system with $N timesteps and:")
     println(io, "   $Ngens generators")
     println(io, "   $Nstors storages")
     println(io, "   $Ngenstors generator-storages")
     println(io, "   $Ndrs demand responses")
+    println(io, "   $Nregions regions")
+    if sum(res.shortfall) > 0
+        println(io, "SHORTFALL: $(sum(res.shortfall)) MWh")
+    end
 end
 
-get_params(::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}) where {N, Ngens, Nstors, Ngenstors, Ndrs} = (N, Ngens, Nstors, Ngenstors, Ndrs)
+get_params(::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs, Nregions}) where {N, Ngens, Nstors, Ngenstors, Ndrs, Nregions} = (N, Ngens, Nstors, Ngenstors, Ndrs, Nregions)
 
-get_keys(::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}) where {N, Ngens, Nstors, Ngenstors, Ndrs} = 
+get_keys(::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs, Nregions}) where {N, Ngens, Nstors, Ngenstors, Ndrs, Nregions} = 
     (:stor_charging, :stor_discharging, :stor_energy,
             :genstor_charging, :genstor_discharging, :genstor_energy,
             :drs_borrowing, :drs_payback,
             :gon, :stup, :shdw,
-            :p_gen, :p_gen_max)
+            :p_gen, :p_gen_max, :shortfall)
 
 
 """
@@ -93,7 +103,7 @@ get_keys(::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}) where {N, Ngens, Nstors
 
 Returns the value of the specified key in the SchedData object.
 """
-function get_value(res::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}, key::Symbol) where {N, Ngens, Nstors, Ngenstors, Ndrs}
+function get_value(res::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs, Nregions}, key::Symbol) where {N, Ngens, Nstors, Ngenstors, Ndrs, Nregions}
     if key == :stor_charging
         return res.stor_charging
     elseif key == :stor_discharging
@@ -120,6 +130,8 @@ function get_value(res::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}, key::Symbo
         return res.p_gen
     elseif key == :p_gen_max
         return res.p_gen_max
+    elseif key == :shortfall
+        return res.shortfall
     else
         error("Invalid key: $key")
     end
@@ -152,6 +164,8 @@ function set_value!(res::SchedData{N, Ngens, Nstors, Ngenstors, Ndrs}, key, valu
         res.p_gen .= value
     elseif key == :p_gen_max
         res.p_gen_max .= value
+    elseif key == :shortfall
+        res.shortfall .= value
     else
         error("Invalid key: $key")
     end
@@ -185,6 +199,8 @@ function update_SchedData!(res::SchedData, idxs_update, res_window, idxs_window)
     res.gon[:, idxs_update] = res_window.gon[:, idxs_window]
     res.stup[:, idxs_update] = res_window.stup[:, idxs_window]
     res.shdw[:, idxs_update] = res_window.shdw[:, idxs_window]
+
+    res.shortfall[:, idxs_update] = res_window.shortfall[:, idxs_window]
 
     return res
 end
