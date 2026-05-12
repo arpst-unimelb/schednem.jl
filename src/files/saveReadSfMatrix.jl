@@ -69,3 +69,28 @@ function lolhFromSfMatrix(filename)
     # maximum(df.K) - number of samples
     return sum(df.V .> 0) / maximum(df.K)
 end
+"""
+    eensAreaFromSfMatrix(filename)
+
+Calculates the expected energy not supplied (EENS) for each area from a sparse failure matrix CSV file (saved with saveSfMatrix). 
+    Returns a dictionary mapping area to EENS value.
+
+"""
+function eensAreaFromSfMatrix(filename)
+    df = CSV.read(filename, DataFrames.DataFrame)
+    area2reg = PRASNEM.get_region_area_map(;rev=true)
+    area_eens = Dict{Int, Float64}()
+    for a in keys(area2reg)
+        findall(x -> x in area2reg[a], df.I)
+        area_eens[a] = sum(df.V[findall(x -> x in area2reg[a], df.I)]) / maximum(df.K)
+    end
+    return area_eens
+end
+
+"""
+
+"""
+function eventsFromSfMatrix(filename)
+    sf = readSfMatrix(filename)
+    return PRASNEM.get_all_event_details(sf)
+end
