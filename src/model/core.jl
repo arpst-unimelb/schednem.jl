@@ -154,11 +154,12 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
         full_horizon = min(full_horizon, end_simulation)
     end
 
-    @info "Running operation model with rolling horizon optimisation..."
-    println("        Optimisation window: ", m[:N], " | Move forward step: ", m[:move_forward], "")
-    println("        Timesteps: ", start_simulation, " to ", full_horizon)
-    println("        Ramping: ", m[:genOpDetails].ramping, " | UC: ", m[:genOpDetails].uc, " | Binary: ", m[:genOpDetails].binary)
-    println("        Reserve run: ", include_reserve_run)
+    info_string = "Running operation model with rolling horizon optimisation... \n" *
+        "Optimisation window: $(m[:N]) | Move forward step: $(m[:move_forward]) \n" *
+        "Timesteps: $start_simulation to $full_horizon \n" *
+        "Ramping: $(m[:genOpDetails].ramping) | UC: $(m[:genOpDetails].uc) | Binary: $(m[:genOpDetails].binary) \n" *
+        "Reserve run: $include_reserve_run"
+    @info info_string
 
     # Initialise an empty SchedData object to store the results
     res = SchedData(sys; N=full_horizon) 
@@ -217,7 +218,7 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
             end
         end
 
-        if include_reserve_run
+        if include_reserve_run && m[:genOpDetails].uc
             # Reset the lower bounds for generator commitment
             set_lower_bound.(m[:gon], 0.0)
 
