@@ -111,14 +111,14 @@ function build_operation_model(sys;
     # Add DER specific constraints
     if DER_parameters["DSP_flexibility"] || DER_parameters["EV_charge_flexibility"]
         m = add_constraints_demandResponse(m, DER_parameters)
-        #m = add_constraints_demandResponse_paybackTime(m, DER_parameters) # Currently not used as maxEnergy constraint is added
-        m = add_constraints_demandResponse_maxEnergy(m, DER_parameters)
+        #m = add_constraints_demandResponse_paybackTime(m, DER_parameters) # Only relevant for EV charge flexibility
+        m = add_constraints_demandResponse_maxEnergy(m, DER_parameters) # Only relevant for DSP flexibility
     end
     if !DER_parameters["VPP_flexibility"]
         m = add_constraints_disableVPP(m, sys)
     end
 
-		MOI.set(m, POI.ConstraintsInterpretation(), POI.BOUNDS_AND_CONSTRAINTS)
+	MOI.set(m, POI.ConstraintsInterpretation(), POI.BOUNDS_AND_CONSTRAINTS)
 
     # Initialise with first step
     update_model_parameters!(m, sys, 1)
@@ -218,7 +218,9 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
             end
         end
 
-        if include_reserve_run && m[:genOpDetails].uc
+        if include_reserve_run && !m[:genOpDetails].uc && (start_idx == start_simulation)
+            @warn "Reserve run requested but no UC formulation found in model. Skipping reserve run for this simulation."
+        elseif include_reserve_run && m[:genOpDetails].uc
             # Reset the lower bounds for generator commitment
             set_lower_bound.(m[:gon], 0.0)
 
@@ -237,7 +239,7 @@ function run_operation_model(m, sys; output_file::String="", start_simulation::I
                 set_lower_bound.(m[:gon], gons) 
             else
                 @warn "Optimization failed for window $start_idx-$(start_idx+m[:N]-1) for reserve run. Removing reserve constraints for this window."
-                return m
+                set_lower_bound.(m[:gon], 0.0)
             end
         end
 

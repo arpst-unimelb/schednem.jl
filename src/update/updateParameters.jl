@@ -121,7 +121,12 @@ function update_model_parameters!(m, sys, start_index; end_index::Int=0, initial
         
         # WARNING: Currently setting the energy interest to -1.0 for all time steps
         #set_parameter_value.(m[:drs_energy_interest][:,t], sys.demandresponses.borrowed_energy_interest[:, idxs])
-        set_parameter_value.(m[:drs_energy_interest][:,t], -1.0) 
+        set_parameter_value.(m[:drs_energy_interest][:,t], -1.0)
+        # If EV exists
+        if !isempty(m[:drs_idxs_EV])
+            set_parameter_value.(m[:drs_energy_interest][m[:drs_idxs_EV],t], sys.demandresponses.borrowed_energy_interest[m[:drs_idxs_EV], idxs]) # Set the energy interest for EVs to the correct values since they can borrow energy over multiple time steps and the energy needs to be paid back
+            set_parameter_value.(m[:drs_energy_cap][m[:drs_idxs_EV],t], sys.demandresponses.energy_capacity[m[:drs_idxs_EV], idxs]) # Set the energy capacity for EVs to the correct values since they can borrow energy over multiple time steps and the energy needs to be paid back
+        end
 
         # Set the borrow capacity for the remaining time steps to the last value
         set_parameter_value.(m[:drs_borrow_cap][:,remaining_t], sys.demandresponses.borrow_capacity[:, idxs[end]]) # Keep the borrow capacity for the remaining time steps to keep the max energy constraint correct
