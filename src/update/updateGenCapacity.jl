@@ -41,11 +41,13 @@ function updateGenAvailabilityStep!(m, genAv::Matrix, step::Int; start_index_mod
     genAv_step = genAv[:, step]
     set_parameter_value.(m[:gen_cap][:, start_index_model:end], parameter_value.(m[:gen_cap][:, start_index_model:end]) .* genAv_step)
 
-    genFailures_step = genAv_step - genAv[:, max(1, step - 1)] # This will be -1 for generators that fail and 1 for generators that recover compared to the previous time step
-    if any(genFailures_step .== -1)
-        @debug "Generator failure detected in the genAv matrix at step $step. Updating the gen_fail_before and gen_fail parameters to disable ramping constraints for the failing generators."
-        # For the time steps after the failure, set gen_fail to 1 for the failing generators to disable ramping constraints in those time steps as well (assuming the generator remains failed)
-        set_parameter_value.(m[:gen_fail][:, start_index_model], (genFailures_step .== -1))
+    if m[:genOpDetails].uc || m[:genOpDetails].ramping
+        genFailures_step = genAv_step - genAv[:, max(1, step - 1)] # This will be -1 for generators that fail and 1 for generators that recover compared to the previous time step
+        if any(genFailures_step .== -1)
+            @debug "Generator failure detected in the genAv matrix at step $step. Updating the gen_fail_before and gen_fail parameters to disable ramping constraints for the failing generators."
+            # For the time steps after the failure, set gen_fail to 1 for the failing generators to disable ramping constraints in those time steps as well (assuming the generator remains failed)
+            set_parameter_value.(m[:gen_fail][:, start_index_model], (genFailures_step .== -1))
+        end
     end
 
     return m
